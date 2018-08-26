@@ -1,0 +1,5 @@
+{
+    "python.pythonPath": "${workspaceFolder}\\env\\Scripts\\python.exe",
+    "git.ignoreLimitWarning": true,
+    "python.linting.enabled": false
+}
