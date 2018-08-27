@@ -14,14 +14,15 @@ class AuditModel(models.Model):
 
 class Template(AuditModel):
     DESTINATION__CHOICES = (('CN', 'CN'), ('US', 'US'))
-    name = models.CharField(max_length=50)
+    name = models.CharField(max_length=50, unique=True)
     destination = models.CharField(max_length=2, choices=DESTINATION__CHOICES, default='CN')
     description = models.CharField(max_length=255, null=True)
     version = models.CharField(max_length=50, null=True)
     content = models.TextField(max_length =60000)
 
 class Company(AuditModel):
-    name = models.CharField(max_length=50)
+    owner = models.OneToOneField(User, related_name='owner', on_delete=models.PROTECT) 
+    name = models.CharField(max_length=50, unique=True)
     address = models.CharField(max_length=255)
     telephone = models.CharField(max_length=15)
     city = models.CharField(max_length=30)
@@ -34,7 +35,7 @@ class Application(AuditModel):
     template = models.ForeignKey(Template, on_delete=models.PROTECT)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='applications')
     description = models.CharField(max_length=50)
-    number = models.CharField(max_length=50)
+    number = models.CharField(max_length=50, unique=True)
     sequence = models.CharField(max_length=50)
     seqDescription = models.CharField(max_length=50)
     

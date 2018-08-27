@@ -7,9 +7,10 @@ class TemplateSerializer(serializers.HyperlinkedModelSerializer):
         fields = ( 'id', 'name', 'destination', 'description', 'version', 'content', 'created_at')
 
 class CompanySerializer(serializers.HyperlinkedModelSerializer):
+    # owner = serializers.ReadOnlyField(source='owner.username')
     class Meta:
         model = Company
-        fields = ('id', 'name', 'address', 'telephone', 'city', 'province', 'country', 'postal', 'activated', 'created_at')
+        fields = ('id', 'owner', 'name', 'address', 'telephone', 'city', 'province', 'country', 'postal', 'activated', 'created_at')
 class ApplicationSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Application
