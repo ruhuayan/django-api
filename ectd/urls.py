@@ -26,7 +26,7 @@ router = routers.DefaultRouter()
 router.register(r'groups', views.GroupViewSet)
 router.register(r'templates', TemplateViewSet)
 router.register(r'companies', CompanyViewSet, base_name='company')
-router.register(r'applications', ApplicationViewSet)
+router.register(r'applications', ApplicationViewSet, base_name='application')
 router.register(r'users', views.UserViewSet, base_name='user')
 
 

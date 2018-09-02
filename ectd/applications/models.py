@@ -12,6 +12,10 @@ class AuditModel(models.Model):
     class Meta:
         abstract = True
 
+class ManagerModel(models.Model):
+    creator = models.OneToOneField(User, related_name='creator', on_delete=models.PROTECT) 
+    updated_by = models.ForeignKey(User, on_delete=models.PROTECT)
+
 class Template(AuditModel):
     DESTINATION__CHOICES = (('CN', 'CN'), ('US', 'US'))
     name = models.CharField(max_length=50, unique=True)
@@ -31,7 +35,7 @@ class Company(AuditModel):
     postal = models.CharField(max_length=15, null=True)
     activated = models.BooleanField(default=False)
 
-class Application(AuditModel):
+class Application(AuditModel): #ManagerModel
     template = models.ForeignKey(Template, on_delete=models.PROTECT)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='applications')
     description = models.CharField(max_length=50)
@@ -48,7 +52,7 @@ class Employee(AuditModel):
     telephone = models.CharField(max_length=15, null=True)
     role = models.CharField(max_length=4, choices=ROLE_CHOICES, default='BAS')
    
-class Contact(AuditModel):
+class Contact(AuditModel, ManagerModel):
     application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='contact')
     CONTACTTYPE_CHOICES = (('REG', 'REGULATORY'),('TEC', 'TECHNICAL'),('AGT', 'AGENT'),('PRO', 'PROMOTIONAL'))
     contactType = models.CharField(max_length=3, choices=CONTACTTYPE_CHOICES)
