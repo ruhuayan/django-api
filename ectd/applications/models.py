@@ -25,7 +25,7 @@ class Template(AuditModel):
     content = models.TextField(max_length =60000)
 
 class Company(AuditModel):
-    owner = models.OneToOneField(User, related_name='owner', on_delete=models.PROTECT) 
+    # owner = models.OneToOneField(User, related_name='owner', on_delete=models.PROTECT) 
     name = models.CharField(max_length=50, unique=True)
     address = models.CharField(max_length=255)
     telephone = models.CharField(max_length=15)
@@ -52,8 +52,8 @@ class Employee(AuditModel):
     telephone = models.CharField(max_length=15, null=True)
     role = models.CharField(max_length=4, choices=ROLE_CHOICES, default='BAS')
    
-class Contact(AuditModel, ManagerModel):
-    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='contact')
+class Contact(AuditModel): #ManagerModel
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='contacts')
     CONTACTTYPE_CHOICES = (('REG', 'REGULATORY'),('TEC', 'TECHNICAL'),('AGT', 'AGENT'),('PRO', 'PROMOTIONAL'))
     contactType = models.CharField(max_length=3, choices=CONTACTTYPE_CHOICES)
     phone = models.CharField(max_length=15)
@@ -112,11 +112,7 @@ class Tag(AuditModel):
     productName = models.CharField(max_length=50)
     dosage = models.CharField(max_length=50)
 
-# @receiver(post_save, sender=User)
-# def create_user_profile(sender, instance, created, **kwargs):
-#     if created:
-#         Profile.objects.create(user=instance)
-
-# @receiver(post_save, sender=User)
-# def save_user_profile(sender, instance, **kwargs):
-#     instance.profile.save()
+# rm -f db.sqlite3
+# rm -r applications/migrations
+# python manage.py makemigrations applications
+# python manage.py migrate

@@ -28,6 +28,8 @@ router.register(r'templates', TemplateViewSet)
 router.register(r'companies', CompanyViewSet, base_name='company')
 router.register(r'applications', ApplicationViewSet, base_name='application')
 router.register(r'users', views.UserViewSet, base_name='user')
+router.register(r'employees', EmployeeViewSet, base_name='employee')
+router.register(r'contacts', ContactViewSet, base_name='contact')
 
 
 urlpatterns = [
