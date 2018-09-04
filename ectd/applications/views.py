@@ -7,9 +7,10 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from ectd.applications.serializers import *
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
-from rest_framework.parsers import FileUploadParser
+from rest_framework.parsers import FileUploadParser, MultiPartParser, FormParser
 from ectd.extra.msg import Msg
 from django.db import IntegrityError
+import os
 
 # from rest_framework import mixins
 # from rest_framework import generics
@@ -225,7 +226,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             employee.delete()
             return Response({'msg': "employee deleted"}, status=status.HTTP_204_NO_CONTENT)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
-
 
 class ContactViewSet(viewsets.ModelViewSet):
     def list(self, request):
@@ -469,15 +469,31 @@ class FileViewSet(viewsets.ModelViewSet):
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
 class FileUploadView(APIView):
-    parser_classes = (FileUploadParser, )
+    parser_classes = (MultiPartParser, FormParser)
 
     def post(self, request, id=None, format='pdf'):
-        up_file = request.FILES['file']
-        destination = open('/Users/ectd/app_'+ id+'/' + up_file.name, 'wb+')
-        # with open('/Users/Username/' + up_file.name, 'wb+') as destination:
-        for chunk in up_file.chunks():
-            destination.write(chunk)
-        destination.close()
+        try:
+            application = Application.objects.get(pk=id)
+            employee = Employee.objects.get(user=request.user)
+        # except File.DoesNotExist:
+        #     return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist: 
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+
+        up_file = request.FILES['files']
+        print(repr(up_file))
+        # destination = open('/Users/nebula-ai/django/app_'+ id+'/' + up_file.name, 'wb+')
+        path = '/Users/nebula-ai/Desktop/django/app_'+ id
+        if not os.path.exists(path):
+            os.mkdir(path)
+        with open(path+'/' + up_file.name, 'wb+') as destination:
+            for chunk in up_file.chunks():
+                destination.write(chunk)
+        # for chunk in up_file.chunks():
+        #     destination.write(chunk)
+        # destination.close()
 
         # ...
         # do some stuff with uploaded file
