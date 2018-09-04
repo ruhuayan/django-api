@@ -30,7 +30,8 @@ router.register(r'applications', ApplicationViewSet, base_name='application')
 router.register(r'users', views.UserViewSet, base_name='user')
 router.register(r'employees', EmployeeViewSet, base_name='employee')
 router.register(r'contacts', ContactViewSet, base_name='contact')
-
+router.register(r'appinfos', AppinfoViewSet, base_name='appinfo')
+router.register(r'files', FileViewSet, base_name='file')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -38,8 +39,8 @@ urlpatterns = [
     # url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework'))
     url(r'^api-token-auth/', obtain_jwt_token),
     url(r'^api-token-refresh/', refresh_jwt_token),
-    # url(r'^api/templates', TemplateList.as_view()),
     url(r'^users/register', views.AccountList.as_view()),
+    url(r'^fileUpload/(?P<id>[0-9]+)/$', FileUploadView.as_view())
     # url(r'^activate/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,20})/$',
     #     views.activate, name='activate')
 ]

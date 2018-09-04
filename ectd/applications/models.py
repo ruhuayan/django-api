@@ -55,7 +55,7 @@ class Employee(AuditModel):
 class Contact(AuditModel): #ManagerModel
     application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='contacts')
     CONTACTTYPE_CHOICES = (('REG', 'REGULATORY'),('TEC', 'TECHNICAL'),('AGT', 'AGENT'),('PRO', 'PROMOTIONAL'))
-    contactType = models.CharField(max_length=3, choices=CONTACTTYPE_CHOICES)
+    contactType = models.CharField(max_length=3, choices=CONTACTTYPE_CHOICES, unique=True)
     phone = models.CharField(max_length=15)
     email = models.EmailField(max_length=50)
 
@@ -116,3 +116,4 @@ class Tag(AuditModel):
 # rm -r applications/migrations
 # python manage.py makemigrations applications
 # python manage.py migrate
+#python manage.py createsuperuser

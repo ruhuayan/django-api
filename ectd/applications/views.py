@@ -7,8 +7,10 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from ectd.applications.serializers import *
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
+from rest_framework.parsers import FileUploadParser
 from ectd.extra.msg import Msg
 from django.db import IntegrityError
+
 # from rest_framework import mixins
 # from rest_framework import generics
 
@@ -40,20 +42,16 @@ class CompanyViewSet(viewsets.ViewSet):
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
     
     def create(self, request):
-        #request.data['owner'] ={'id': request.user.id }  #User.objects.get(username=request.user.username)  
-        #serializer = CompanySerializer(data=request.data)
-        # print(serializer.is_valid())
-        # if serializer.is_valid():
-        company = Company.objects.create(**request.data)
         try: 
-            
-            # print(repr(company))
-            employee = Employee.objects.create(user=request.user, company=company)
-            employee.role='ADMIN'
+            company = Company.objects.create(**request.data)
+            print(repr(company))
+            employee = Employee.objects.create(user=request.user, company=company, role='ADMIN')
             # serializer_comp = CompanySerializer(company)
             serializer = CompanySerializer(company)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except IntegrityError:
+            if company:
+                company.delete()
             return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -94,11 +92,13 @@ class ApplicationViewSet(viewsets.ViewSet):
     def retrieve(self, request, pk=None):
         try:
             application = Application.objects.get(pk=pk)
+            employee = Employee.objects.get(user=request.user)
         except Application.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        company = Company.objects.get(pk=application.company.id)
-        print(company.owner, request.user)
-        if request.user.is_superuser or request.user == company.owner:
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'},status=status.HTTP_404_NOT_FOUND )    
+        
+        if request.user.is_superuser or application.company.id == employee.company.id:
             serializer = ApplicationSerializer(application)
             return Response(serializer.data)
 
@@ -106,22 +106,26 @@ class ApplicationViewSet(viewsets.ViewSet):
     
     def create(self, request):
         try: 
-            company = Company.objects.get(owner=request.user)
+            template = Template.objects.get(pk=request.data.pop('template'))
+            employee = Employee.objects.get(user=request.user)
+            company = Company.objects.get(pk=employee.company.id)
+            if not employee.role == 'ADMIN':
+                print('not authorized')
+            
+            if not company.activated:
+                print('company not activated')
+
+            application = Application.objects.create(company=company, template=template, **request.data)
+            serializer = ApplicationSerializer(application)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'},status=status.HTTP_404_NOT_FOUND )
+        except Template.DoesNotExist:
+            return Response({'msg': 'Template Not Found'}, status=status.HTTP_404_NOT_FOUND)
         except Company.DoesNotExist:
             return Response({'msg': 'User has not a company'},status=status.HTTP_404_NOT_FOUND )
-        request.data['company'] = {'id': company.id}
-        serializer = ApplicationSerializer(data=request.data)
-
-        if serializer.is_valid():
-            try: 
-                application = serializer.create(validated_data=request.data)
-                serializer_app = ApplicationSerializer(application)
-                # data = core_serializers.serialize('json', application)
-                # app_data = model_to_dict(application)
-                # print(repr(app_data))
-                return Response(serializer_app.data, status=status.HTTP_201_CREATED)
-            except IntegrityError:
-                return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+        except IntegrityError:
+            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -129,15 +133,14 @@ class ApplicationViewSet(viewsets.ViewSet):
     def update(self, request, pk=None):
         try:
             application = Application.objects.get(pk=pk)
+            employee = Employee.objects.get(user=request.user)
         except Application.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'},status=status.HTTP_404_NOT_FOUND) 
         serializer = ApplicationSerializer(application, data=request.data)
-        try: 
-            company = Company.objects.get(owner=request.user)
-        except Company.DoesNotExist:
-            return Response({'msg': 'User has not a company'},status=status.HTTP_404_NOT_FOUND )
-        # print(application.company.id,company_user.id )
-        if request.user.is_superuser or application.company.id == company.id:
+       
+        if request.user.is_superuser or application.company.id == employee.company.id:
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data)
@@ -145,16 +148,14 @@ class ApplicationViewSet(viewsets.ViewSet):
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
     def destroy(self, request, pk=None):
-        # if  not request.user.is_superuser:
-        #    return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION) 
         try: 
-            company = Company.objects.get(owner=request.user)
+            employee = Employee.objects.get(user=request.user)
             application = Application.objects.get(pk=pk)
-            if  application.company.id == company.id:
+            if  application.company.id == employee.company.id and employee.role=='ADMIN':
                 Application.delete = True
                 return Response({'msg': "application deleted"}, status=status.HTTP_204_NO_CONTENT)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
-        except Company.DoesNotExist:
+        except Employee.DoesNotExist:
             return Response({'msg': 'User is not an owner'},status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION )
         except Application.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
@@ -183,20 +184,18 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     def create(self, request):
         try: 
             user = User.objects.get(username=request.user)
+            company_data = request.data.pop('company')
+            request.data['role'] = 'BAS'
+            company = Company.objects.get(pk=company_data['id'])
+            employee = Employee.objects.create(user=user, company=company, **request.data)
+            serializer = EmployeeSerializer(employee)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         except User.DoesNotExist:
             return Response({'msg': 'User Not Found'},status=status.HTTP_404_NOT_FOUND )
-        request.data['user'] = {'id': user.id}
-        serializer = EmployeeSerializer(data=request.data)
-
-        if serializer.is_valid():
-            try: 
-                employee = serializer.create(validated_data=request.data)
-                serializer_emp = EmployeeSerializer(employee)
-                # app_data = model_to_dict(employee)
-                # print(repr(app_data))
-                return Response(serializer_emp.data, status=status.HTTP_201_CREATED)
-            except IntegrityError:
-                return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+        except Company.DoesNotExist:
+            return Response({'msg': 'Company Not Found'},status=status.HTTP_404_NOT_FOUND )
+        except IntegrityError:
+            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -208,7 +207,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         serializer = EmployeeSerializer(employee, data=request.data)
        
-        if request.user.is_superuser or employee.user.username == request.user:
+        if request.user.is_superuser or employee.user == request.user:
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data)
@@ -240,16 +239,15 @@ class ContactViewSet(viewsets.ModelViewSet):
         try:
             contact = Contact.objects.get(pk=pk)
             application = Application.objects.get(pk=contact.application.id)
-            # company = Company.objects.get(pk=application.company.id)
             employee = Employee.objects.get(user=request.user)
         except Contact.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
             return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
-        # except Company.DoesNotExist: 
-        #     return Response({'msg': 'Company Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist: 
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
         # user = User.objects.get(pk=employee.user.id)
-        if request.user.is_superuser or application.company == employee.company:
+        if request.user.is_superuser or application.company.id == employee.company.id:
             serializer = ContactSerializer(contact)
             return Response(serializer.data)
 
@@ -274,12 +272,20 @@ class ContactViewSet(viewsets.ModelViewSet):
 
     def update(self, request, pk=None):
         try:
-            employee = Employee.objects.get(pk=pk)
+            employee = Employee.objects.get(user=request.user)
+            contact = Contact.objects.get(pk=pk)
+            application = Application.objects.get(pk=contact.application.id)
         except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Contact.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        serializer = EmployeeSerializer(employee, data=request.data)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        request.data['application'] = application.id
+        serializer = ContactSerializer(contact, data=request.data)
        
-        if request.user.is_superuser or employee.user.username == request.user:
+        if request.user.is_superuser or application.company.id == employee.company.id:
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data)
@@ -288,26 +294,192 @@ class ContactViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, pk=None):
         try: 
-            employee = Employee.objects.get(pk=pk)
+            employee = Employee.objects.get(user=request.user)
+            contact = Contact.objects.get(pk=pk)
+            application = Application.objects.get(pk=contact.application.id)
         except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Contact.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
 
-        if request.user.is_superuser or employee.user.username == request.user:
-            Employee.delete = True
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            contact.delete()
             return Response({'msg': "employee deleted"}, status=status.HTTP_204_NO_CONTENT)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
+class AppinfoViewSet(viewsets.ModelViewSet):
+    def list(self, request):
+        if request.user.is_superuser or True:
+            queryset = Appinfo.objects.all()
+            serializer = AppinfoSerializer(queryset, many=True)
+            return Response(serializer.data)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
-class TemplateList(APIView):
+    def retrieve(self, request, pk=None):
+        try:
+            appinfo = Appinfo.objects.get(pk=pk)
+            application = Application.objects.get(pk=appinfo.application.id)
+            employee = Employee.objects.get(user=request.user)
+        except Appinfo.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist: 
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
 
-    def get(self, request, format=None):
-        templates = Template.objects.all()
-        serializer = TemplateSerializer(templates, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def post(self, request, format=None):
-        serializer = TemplateSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            serializer = AppinfoSerializer(appinfo)
+            return Response(serializer.data)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+    
+    def create(self, request):
+        try: 
+            app_id = request.data.pop('application')
+            application = Application.objects.get(pk=app_id) 
+            appinfo = Appinfo.objects.create(application=application, **request.data)
+            serializer = AppinfoSerializer(appinfo)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except IntegrityError:
+            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+    
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    def update(self, request, pk=None):
+        try:
+            employee = Employee.objects.get(user=request.user)
+            appinfo = Appinfo.objects.get(pk=pk)
+            application = Application.objects.get(pk=appinfo.application.id)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Appinfo.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        request.data['application'] = application.id
+        serializer = Appinfo.Serializer(appinfo, data=request.data)
+       
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+    def destroy(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            appinfo = Appinfo.objects.get(pk=pk)
+            application = Application.objects.get(pk=appinfo.application.id)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Appinfo.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            appinfo.delete()
+            return Response({'msg': "employee deleted"}, status=status.HTTP_204_NO_CONTENT)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+class FileViewSet(viewsets.ModelViewSet):
+    def list(self, request):
+        if request.user.is_superuser or True:
+            queryset = File.objects.all()
+            serializer = FileSerializer(queryset, many=True)
+            return Response(serializer.data)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+    def retrieve(self, request, pk=None):
+        try:
+            file = File.objects.get(pk=pk)
+            application = Application.objects.get(pk=file.application.id)
+            employee = Employee.objects.get(user=request.user)
+        except File.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist: 
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            serializer = FileSerializer(file)
+            return Response(serializer.data)
+
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+    
+    #def create(self, request):
+        # try: 
+        #     app_id = request.data.pop('application')
+        #     application = Application.objects.get(pk=app_id) 
+
+        #     contact = Contact.objects.create(application=application, **request.data)
+        #     serializer = ContactSerializer(contact)
+        #     return Response(serializer.data, status=status.HTTP_201_CREATED)
+        # except Application.DoesNotExist:
+        #     return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        # except IntegrityError:
+        #     return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+    
+        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def update(self, request, pk=None):
+        try:
+            employee = Employee.objects.get(user=request.user)
+            file = File.objects.get(pk=pk)
+            application = Application.objects.get(pk=file.application.id)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except File.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        request.data['application'] = application.id
+        serializer = FileSerializer(contact, data=request.data)
+       
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+    def destroy(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            file = File.objects.get(pk=pk)
+            application = Application.objects.get(pk=contact.application.id)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except File.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            file.delete = true
+            return Response({'msg': "file deleted"}, status=status.HTTP_204_NO_CONTENT)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+class FileUploadView(APIView):
+    parser_classes = (FileUploadParser, )
+
+    def post(self, request, id=None, format='pdf'):
+        up_file = request.FILES['file']
+        destination = open('/Users/ectd/app_'+ id+'/' + up_file.name, 'wb+')
+        # with open('/Users/Username/' + up_file.name, 'wb+') as destination:
+        for chunk in up_file.chunks():
+            destination.write(chunk)
+        destination.close()
+
+        # ...
+        # do some stuff with uploaded file
+        # ...
+        return Response(up_file.name, status.HTTP_201_CREATED)

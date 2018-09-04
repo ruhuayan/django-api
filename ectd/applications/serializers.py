@@ -1,4 +1,4 @@
-from ectd.applications.models import Template, Company, Application, Employee, Contact
+from ectd.applications.models import Template, Company, Application, Employee, Contact, Appinfo, File
 from rest_framework import serializers
 from ectd.manage.serializers import UserSerializer
 from django.contrib.auth.models import User
@@ -28,13 +28,14 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = Employee
         fields = '__all__'
 
-    def create(self, validated_data):
-        user_data = validated_data.pop('user')
-        user = User.objects.get(pk=user_data['id'])
-        company_data = validated_data.pop('company')
-        company = Company.objects.get(pk=company_data['id'])
-        employee = Employee.objects.create(user=user, company= company, **validated_data)
-        return employee
+    #def create(self, validated_data):
+        # user_data = validated_data.pop('user')
+        # role = validated_data.pop('role')
+        # user = User.objects.get(pk=user_data['id'])
+        # company_data = validated_data.pop('company')
+        # company = Company.objects.get(pk=company_data['id'])
+        # employee = Employee.objects.create(user=user, company= company, **validated_data)
+        # return employee
 
 class ApplicationSerializer(serializers.ModelSerializer):
     # template = TemplateSerializer(read_only=True)
@@ -46,16 +47,18 @@ class ApplicationSerializer(serializers.ModelSerializer):
         depth = 1
         # fields = ('id', 'template', 'company', 'number', 'description', 'sequence', 'seqDescription')
 
-    def create(self, validated_data):
-        template_data = validated_data.pop('template')
-        template = Template.objects.get(pk=template_data['id'])
-        company_data = validated_data.pop('company')
-        company = Company.objects.get(pk=company_data['id'])
-        application = Application.objects.create(template=template, company= company, **validated_data)
-        return application
-
 
 class ContactSerializer(serializers.ModelSerializer):
     class Meta: 
         model = Contact
+        fields = '__all__'
+
+class AppinfoSerializer(serializers.ModelSerializer):
+    class Meta: 
+        model = Appinfo
+        fields = '__all__'
+
+class FileSerializer(serializers.ModelSerializer):
+    class Meta: 
+        model = File
         fields = '__all__'
