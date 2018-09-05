@@ -11,6 +11,7 @@ from rest_framework.parsers import FileUploadParser, MultiPartParser, FormParser
 from ectd.extra.msg import Msg
 from django.db import IntegrityError
 import os
+import uuid
 
 # from rest_framework import mixins
 # from rest_framework import generics
@@ -227,6 +228,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return Response({'msg': "employee deleted"}, status=status.HTTP_204_NO_CONTENT)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
+
 class ContactViewSet(viewsets.ModelViewSet):
     def list(self, request):
         if request.user.is_superuser or True:
@@ -430,6 +432,8 @@ class FileViewSet(viewsets.ModelViewSet):
         # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def update(self, request, pk=None):
+        return Response({'msg': 'Cannot update file'}, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        
         try:
             employee = Employee.objects.get(user=request.user)
             file = File.objects.get(pk=pk)
@@ -472,6 +476,7 @@ class FileUploadView(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
     def post(self, request, id=None, format='pdf'):
+        
         try:
             application = Application.objects.get(pk=id)
             employee = Employee.objects.get(user=request.user)
@@ -481,21 +486,27 @@ class FileUploadView(APIView):
             return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
             return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
-
+    
+        if application.company.id != employee.company.id:
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+            
         up_file = request.FILES['files']
-        print(repr(up_file))
-        # destination = open('/Users/nebula-ai/django/app_'+ id+'/' + up_file.name, 'wb+')
-        path = '/Users/nebula-ai/Desktop/django/app_'+ id
-        if not os.path.exists(path):
-            os.mkdir(path)
-        with open(path+'/' + up_file.name, 'wb+') as destination:
-            for chunk in up_file.chunks():
-                destination.write(chunk)
-        # for chunk in up_file.chunks():
-        #     destination.write(chunk)
-        # destination.close()
-
-        # ...
-        # do some stuff with uploaded file
-        # ...
-        return Response(up_file.name, status.HTTP_201_CREATED)
+        file_folder = uuid.uuid4().hex
+        # path = '/Users/nebula-ai/Desktop/django/app_'+ id +'/'+file_folder         # MAC path
+        path = 'C:/shares/django/app_'+id+'/'+file_folder  # Window path
+        url = path+'/' + up_file.name
+        try:
+            if not os.path.exists(path):
+                os.mkdir(path)
+            with open(url, 'wb+') as destination:
+                for chunk in up_file.chunks():
+                    destination.write(chunk)
+        except OSError as err:
+            print("OS error: {0}".format(err))
+            return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        file = File.objects.create(application=application, name=up_file.name, url=url)
+        serializer = FileSerializer(file)
+        # if serializer.is_valid():
+        return Response(serializer.data, status.HTTP_201_CREATED)
+        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
