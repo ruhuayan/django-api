@@ -416,44 +416,43 @@ class FileViewSet(viewsets.ModelViewSet):
 
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
     
-    #def create(self, request):
-        # try: 
-        #     app_id = request.data.pop('application')
-        #     application = Application.objects.get(pk=app_id) 
-
-        #     contact = Contact.objects.create(application=application, **request.data)
-        #     serializer = ContactSerializer(contact)
-        #     return Response(serializer.data, status=status.HTTP_201_CREATED)
-        # except Application.DoesNotExist:
-        #     return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
-        # except IntegrityError:
-        #     return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
-    
-        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def update(self, request, pk=None):
-        return Response({'msg': 'Cannot update file'}, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+    # def update(self, request, pk=None):
+    #     return Response({'msg': 'Cannot update file'}, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         
-        try:
-            employee = Employee.objects.get(user=request.user)
-            file = File.objects.get(pk=pk)
-            application = Application.objects.get(pk=file.application.id)
-        except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+    #     try:
+    #         employee = Employee.objects.get(user=request.user)
+    #         file = File.objects.get(pk=pk)
+    #         application = Application.objects.get(pk=file.application.id)
+    #     except Employee.DoesNotExist:
+    #         return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+    #     except File.DoesNotExist:
+    #         return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+    #     except Application.DoesNotExist:
+    #         return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+    #     request.data['application'] = application.id
+    #     serializer = FileSerializer(contact, data=request.data)
+       
+    #     if request.user.is_superuser or application.company.id == employee.company.id:
+    #         if serializer.is_valid():
+    #             serializer.save()
+    #             return Response(serializer.data)
+    #         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    #     return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+    @action(methods=['get'], detail=True,)
+    def read_file(self, request, pk=None)
+        try
+            file = file.objects.get(pk=pk)
         except File.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
-        
-        request.data['application'] = application.id
-        serializer = FileSerializer(contact, data=request.data)
-       
-        if request.user.is_superuser or application.company.id == employee.company.id:
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        try: 
+            with open(file.url, 'r') as f:
+                data = f.read()
+            print(data)  
+        except OSError:
+            # print("OS error: {0}".format(err))
+            return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'data': data})
 
     def destroy(self, request, pk=None):
         try: 
