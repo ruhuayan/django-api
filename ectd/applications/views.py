@@ -393,7 +393,7 @@ class AppinfoViewSet(viewsets.ModelViewSet):
 class FileViewSet(viewsets.ModelViewSet):
     def list(self, request):
         if request.user.is_superuser or True:
-            queryset = File.objects.all()
+            queryset = File.objects.all().filter(deleted=False)
             serializer = FileSerializer(queryset, many=True)
             return Response(serializer.data)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -459,7 +459,7 @@ class FileViewSet(viewsets.ModelViewSet):
         try: 
             employee = Employee.objects.get(user=request.user)
             file = File.objects.get(pk=pk)
-            application = Application.objects.get(pk=contact.application.id)
+            application = Application.objects.get(pk=file.application.id)
         except Employee.DoesNotExist:
             return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
         except File.DoesNotExist:
@@ -468,8 +468,11 @@ class FileViewSet(viewsets.ModelViewSet):
             return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
 
         if request.user.is_superuser or application.company.id == employee.company.id:
-            file.delete = true
-            return Response({'msg': "file deleted"}, status=status.HTTP_204_NO_CONTENT)
+            # setattr(file, 'deleted', 'True')
+            # print(getattr(file,'deleted'))
+            file.deleted = True
+            file.save()
+            return Response({'msg': 'file deleted'}, status=status.HTTP_204_NO_CONTENT)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
 class FileUploadView(APIView):
