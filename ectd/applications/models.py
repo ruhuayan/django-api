@@ -77,6 +77,7 @@ class File(AuditModel):
     application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='files')
     name = models.CharField(max_length=50)
     url = models.URLField(max_length=100)
+    size = models.IntegerField() #validator = [MaxValueValidator(120000000)]
     # status = models.IntegerField(max_length=1)
 
 class FileState(models.Model):

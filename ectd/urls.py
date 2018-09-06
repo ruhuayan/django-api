@@ -40,7 +40,7 @@ urlpatterns = [
     url(r'^api-token-auth/', obtain_jwt_token),
     url(r'^api-token-refresh/', refresh_jwt_token),
     url(r'^users/register', views.AccountList.as_view()),
-    url(r'^fileUpload/(?P<id>[0-9]+)/$', FileUploadView.as_view())
+    url(r'^fileUpload/(?P<app_id>[0-9]+)/$', FileUploadView.as_view())
     # url(r'^activate/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,20})/$',
     #     views.activate, name='activate')
 ]

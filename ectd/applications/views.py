@@ -10,6 +10,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.parsers import FileUploadParser, MultiPartParser, FormParser
 from ectd.extra.msg import Msg
 from django.db import IntegrityError
+from rest_framework.decorators import action
 import os
 import uuid
 
@@ -228,7 +229,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return Response({'msg': "employee deleted"}, status=status.HTTP_204_NO_CONTENT)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
-
 class ContactViewSet(viewsets.ModelViewSet):
     def list(self, request):
         if request.user.is_superuser or True:
@@ -440,15 +440,14 @@ class FileViewSet(viewsets.ModelViewSet):
     #         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     #     return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
     @action(methods=['get'], detail=True,)
-    def read_file(self, request, pk=None)
-        try
-            file = file.objects.get(pk=pk)
+    def read_file(self, request, pk=None):
+        try:
+            file = File.objects.get(pk=pk)
         except File.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         try: 
             with open(file.url, 'r') as f:
-                data = f.read()
-            print(data)  
+                data = f.read() 
         except OSError:
             # print("OS error: {0}".format(err))
             return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -477,10 +476,10 @@ class FileViewSet(viewsets.ModelViewSet):
 class FileUploadView(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
-    def post(self, request, id=None, format='pdf'):
+    def post(self, request, app_id=None):
         
         try:
-            application = Application.objects.get(pk=id)
+            application = Application.objects.get(pk=app_id)
             employee = Employee.objects.get(user=request.user)
         # except File.DoesNotExist:
         #     return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
@@ -488,14 +487,19 @@ class FileUploadView(APIView):
             return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
             return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
-    
+        print(application.company.id, employee.company.id)
         if application.company.id != employee.company.id:
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
             
         up_file = request.FILES['files']
+        print(up_file.size, up_file.content_type)
+        if up_file.content_type != 'application/pdf':
+            return Response({'msg': 'File type not allowed'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        if up_file.size > 100000000: #100M
+            return Response({'msg': 'File size over limit'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
         file_folder = uuid.uuid4().hex
-        # path = '/Users/nebula-ai/Desktop/django/app_'+ id +'/'+file_folder         # MAC path
-        path = 'C:/shares/django/app_'+id+'/'+file_folder  # Window path
+        path = '/Users/nebula-ai/Desktop/django/app_'+ app_id +'/'+file_folder         # MAC path
+        # path = 'C:/shares/django/app_'+app_id+'/'+file_folder  # Window path
         url = path+'/' + up_file.name
         try:
             if not os.path.exists(path):
@@ -507,7 +511,7 @@ class FileUploadView(APIView):
             print("OS error: {0}".format(err))
             return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
             
-        file = File.objects.create(application=application, name=up_file.name, url=url)
+        file = File.objects.create(application=application, name=up_file.name, url=url, size=up_file.size)
         serializer = FileSerializer(file)
         # if serializer.is_valid():
         return Response(serializer.data, status.HTTP_201_CREATED)
