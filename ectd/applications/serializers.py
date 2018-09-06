@@ -1,4 +1,4 @@
-from ectd.applications.models import Template, Company, Application, Employee, Contact, Appinfo, File
+from ectd.applications.models import *
 from rest_framework import serializers
 from ectd.manage.serializers import UserSerializer
 from django.contrib.auth.models import User
@@ -61,4 +61,19 @@ class AppinfoSerializer(serializers.ModelSerializer):
 class FileSerializer(serializers.ModelSerializer):
     class Meta: 
         model = File
+        fields = '__all__'
+
+class FileStateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FileState
+        fields = '__all__'
+
+class NodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Node
+        fields = '__all__'
+
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
         fields = '__all__'

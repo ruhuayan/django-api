@@ -516,3 +516,63 @@ class FileUploadView(APIView):
         # if serializer.is_valid():
         return Response(serializer.data, status.HTTP_201_CREATED)
         # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class FileStateViewSet(viewsets.ModelViewSet):
+    def list(self, request):
+        if request.user.is_superuser or True:
+            queryset = FileState.objects.all().filter(deleted=False)
+            serializer = FileStateSerializer(queryset, many=True)
+            return Response(serializer.data)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+    def retrieve(self, request, pk=None):
+        try:
+            fileState = FileState.objects.get(pk=pk)
+            file = File.objects.get(pk=fileState.file.id)
+            application = Application.objects.get(pk=file.application.id)
+            employee = Employee.objects.get(user=request.user)
+        except FileState.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except File.DoesNotExist:
+            return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND) 
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist: 
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            serializer = FileStateSerializer(file)
+            return Response(serializer.data)
+
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+    
+    def create(self, request):
+        try: 
+            file_id = request.data.pop('file')
+            file = File.objects.get(pk=file_id)
+            application = Application.objects.get(pk=file.application.id) 
+            employee = Employee.objects.get(user=request.user) 
+            
+            # return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except File.DoesNotExist:
+            return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except IntegrityError:
+            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+    
+        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+       @action(methods=['get'], detail=True,)
+    def read_file(self, request, pk=None):
+        try:
+            fileState = FileState.objects.get(pk=pk)
+        except FileState.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        try: 
+            with open(file.url, 'r') as f:
+                data = f.read() 
+        except OSError:
+            # print("OS error: {0}".format(err))
+            return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'data': data})
