@@ -1,5 +1,5 @@
 # from django.shortcuts import render
-from ectd.applications.models import Template, Company, Application, Employee
+from ectd.applications.models import *
 from rest_framework import viewsets, status
 # from django.core import serializers as core_serializers
 # from django.http import JsonResponse
@@ -13,6 +13,8 @@ from django.db import IntegrityError
 from rest_framework.decorators import action
 import os
 import uuid
+import json
+from ectd.PyPDF2 import PdfFileWriter, PdfFileReader
 
 # from rest_framework import mixins
 # from rest_framework import generics
@@ -446,7 +448,7 @@ class FileViewSet(viewsets.ModelViewSet):
         except File.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         try: 
-            with open(file.url, 'r') as f:
+            with open(file.url+'/'+file.name, 'r') as f:
                 data = f.read() 
         except OSError:
             # print("OS error: {0}".format(err))
@@ -498,8 +500,8 @@ class FileUploadView(APIView):
         if up_file.size > 100000000: #100M
             return Response({'msg': 'File size over limit'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
         file_folder = uuid.uuid4().hex
-        path = '/Users/nebula-ai/Desktop/django/app_'+ app_id +'/'+file_folder         # MAC path
-        # path = 'C:/shares/django/app_'+app_id+'/'+file_folder  # Window path
+        #path = '/Users/nebula-ai/Desktop/django/ltd'+application.company.id+'/app_'+ app_id +'/'+file_folder         # MAC path
+        path = 'C:/shares/django/app_'+app_id+'/'+file_folder  # Window path
         url = path+'/' + up_file.name
         try:
             if not os.path.exists(path):
@@ -511,59 +513,99 @@ class FileUploadView(APIView):
             print("OS error: {0}".format(err))
             return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
             
-        file = File.objects.create(application=application, name=up_file.name, url=url, size=up_file.size)
+        file = File.objects.create(application=application, name=up_file.name, url=path, size=up_file.size)
         serializer = FileSerializer(file)
         # if serializer.is_valid():
         return Response(serializer.data, status.HTTP_201_CREATED)
         # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class FileStateViewSet(viewsets.ModelViewSet):
-    def list(self, request):
-        if request.user.is_superuser or True:
-            queryset = FileState.objects.all().filter(deleted=False)
-            serializer = FileStateSerializer(queryset, many=True)
-            return Response(serializer.data)
-        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
-
-    def retrieve(self, request, pk=None):
+    def list(self, request, file_id=None):
         try:
-            fileState = FileState.objects.get(pk=pk)
-            file = File.objects.get(pk=fileState.file.id)
+            file = File.objects.get(pk=file_id)
+            # print(file.url)
             application = Application.objects.get(pk=file.application.id)
             employee = Employee.objects.get(user=request.user)
-        except FileState.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except File.DoesNotExist:
             return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND) 
         except Application.DoesNotExist:
             return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
             return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
-        
-        if request.user.is_superuser or application.company.id == employee.company.id:
-            serializer = FileStateSerializer(file)
-            return Response(serializer.data)
 
+        if application.company.id == employee.company.id:
+            queryset = FileState.objects.all().filter(file=file)
+            serializer = FileStateSerializer(queryset, many=True)
+            return Response(serializer.data)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+    # def retrieve(self, request, pk=None):
+    #     try:
+    #         fileState = FileState.objects.get(pk=pk)
+    #         file = File.objects.get(pk=fileState.file.id)
+    #         application = Application.objects.get(pk=file.application.id)
+    #         employee = Employee.objects.get(user=request.user)
+    #     except FileState.DoesNotExist:
+    #         return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+    #     except File.DoesNotExist:
+    #         return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND) 
+    #     except Application.DoesNotExist:
+    #         return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+    #     except Employee.DoesNotExist: 
+    #         return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+    #     if request.user.is_superuser or application.company.id == employee.company.id:
+    #         serializer = FileStateSerializer(file)
+    #         return Response(serializer.data)
+
+    #     return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
     
-    def create(self, request):
+    def create(self, request, file_id=None):
         try: 
-            file_id = request.data.pop('file')
-            file = File.objects.get(pk=file_id)
-            application = Application.objects.get(pk=file.application.id) 
+            f = File.objects.get(pk=file_id)
+            application = Application.objects.get(pk=f.application.id) 
             employee = Employee.objects.get(user=request.user) 
-            
-            # return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+            if application.company.id == employee.company.id:
+                actions = json.loads(request.data['action'])
+                links = actions['links']
+                # texts = actions['texts']
+                pdf = PdfFileReader(open(f.url+'/'+f.name, 'rb'))
+                writer = PdfFileWriter()
+
+                for i in range(0,pdf.getNumPages()):
+                    writer.addPage(pdf.getPage(i))
+                
+                for link in links:
+                    print(repr(link))
+                    writer.addURI(link['pageNum'], link['uri'], link['rect'])
+                
+                output_path = f.url+'/states/'
+                try:
+                    if not os.path.exists(output_path):
+                        os.mkdir(output_path)
+                    with open(output_path+'/'+f.name, 'wb+') as destination:
+                        writer.write(destination)
+                except OSError as err:
+                    print("OS error: {0}".format(err))
+                    return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
+                # writer.write(open(output_path, "wb"))
+                # with file("destination.pdf", "wb") as outfp:
+                #     writer.write(outfp)
+                fileState = FileState.objects.create(file=f, action=request.data['action'], path=output_path)
+                serializer = FileStateSerializer(fileState)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+                # return Response(links)
         except File.DoesNotExist:
             return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
             return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError:
             return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
-    
-        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # except Error:
+        #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-       @action(methods=['get'], detail=True,)
+    @action(methods=['get'], detail=True,)
     def read_file(self, request, pk=None):
         try:
             fileState = FileState.objects.get(pk=pk)
