@@ -934,18 +934,18 @@ class PdfFileWriter(object):
 
         lnk2 = DictionaryObject()
         lnk2.update({
-        NameObject('/S'): NameObject('/URI'),
-        NameObject('/URI'): TextStringObject(uri)
-        });
+            NameObject('/S'): NameObject('/URI'),
+            NameObject('/URI'): TextStringObject(uri)
+        })
         lnk = DictionaryObject()
         lnk.update({
-        NameObject('/Type'): NameObject('/Annot'),
-        NameObject('/Subtype'): NameObject('/Link'),
-        NameObject('/P'): pageLink,
-        NameObject('/Rect'): rect,
-        NameObject('/H'): NameObject('/I'),
-        NameObject('/Border'): ArrayObject(borderArr),
-        NameObject('/A'): lnk2
+            NameObject('/Type'): NameObject('/Annot'),
+            NameObject('/Subtype'): NameObject('/Link'),
+            NameObject('/P'): pageLink,
+            NameObject('/Rect'): rect,
+            NameObject('/H'): NameObject('/I'),
+            NameObject('/Border'): ArrayObject(borderArr),
+            NameObject('/A'): lnk2
         })
         lnkRef = self._addObject(lnk)
 

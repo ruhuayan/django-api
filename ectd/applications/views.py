@@ -84,6 +84,38 @@ class CompanyViewSet(viewsets.ViewSet):
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         company.delete()
         return Response({'msg': "company deleted"}, status=status.HTTP_204_NO_CONTENT)
+    
+    #API: /companies/2/applications
+    @action(methods=['get'], detail=True,)
+    def applications(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            company = Company.objects.get(pk=pk)
+            if request.user.is_superuser or company.id == employee.company.id:
+                apps = Application.objects.get(company=company)
+                serializer = ApplicationSerializer(apps, many=True)
+                return Response(serializer.data)
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Company.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND) 
+
+    #API: /companies/2/employees
+    @action(methods=['get'], detail=True,)
+    def employees(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            company = Company.objects.get(pk=pk)
+            if request.user.is_superuser or company.id == employee.company.id:
+                emps = Employee.objects.get(company=company)
+                serializer = EmployeeSerializer(emps, many=True)
+                return Response(serializer.data)
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Company.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
 class ApplicationViewSet(viewsets.ViewSet):
 
@@ -134,7 +166,6 @@ class ApplicationViewSet(viewsets.ViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
     def update(self, request, pk=None):
         try:
             application = Application.objects.get(pk=pk)
@@ -164,7 +195,85 @@ class ApplicationViewSet(viewsets.ViewSet):
             return Response({'msg': 'User is not an owner'},status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION )
         except Application.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        
+    
+    #API: /applications/5/contacts
+    @action(methods=['get'], detail=True,)
+    def contacts(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            application = Application.objects.get(pk=pk)
+            if request.user.is_superuser or application.company.id == employee.company.id:
+                queryset = Contact.objects.get(application=application)
+                serializer = ContactSerializer(queryset, many=True)
+                return Response(serializer.data)
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+
+    #API: /applications/5/appinfo
+    @action(methods=['get'], detail=True,)
+    def appinfo(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            application = Application.objects.get(pk=pk)
+            if request.user.is_superuser or application.company.id == employee.company.id:
+                appinfo = Appinfo.objects.get(application=application)
+                serializer = AppinfoSerializer(appinfo)
+                return Response(serializer.data)
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+
+    #API: /applications/5/nodes
+    @action(methods=['get'], detail=True,)
+    def nodes(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            application = Application.objects.get(pk=pk)
+            if request.user.is_superuser or application.company.id == employee.company.id:
+                nodes = Node.objects.get(application=application)
+                serializer = AppinfoSerializer(nodes, many=True)
+                return Response(serializer.data)
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+
+    #API: /applications/5/tags
+    @action(methods=['get'], detail=True,)
+    def tags(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            application = Application.objects.get(pk=pk)
+            if request.user.is_superuser or application.company.id == employee.company.id:
+                tags = Node.objects.get(application=application)
+                serializer = TagSerializer(tags, many=True)
+                return Response(serializer.data)
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)  
+    
+    #API: /application/5/download
+    @action(methods=['get'], detail=True,)
+    def download(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            application = Application.objects.get(pk=pk)
+            if request.user.is_superuser or application.company.id == employee.company.id:
+                pass
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)      
+
 class EmployeeViewSet(viewsets.ModelViewSet):
     def list(self, request):
         if request.user.is_superuser or True:
@@ -262,7 +371,6 @@ class ContactViewSet(viewsets.ModelViewSet):
         try: 
             app_id = request.data.pop('application')
             application = Application.objects.get(pk=app_id) 
-
             contact = Contact.objects.create(application=application, **request.data)
             serializer = ContactSerializer(contact)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -366,7 +474,7 @@ class AppinfoViewSet(viewsets.ModelViewSet):
             return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
         
         request.data['application'] = application.id
-        serializer = Appinfo.Serializer(appinfo, data=request.data)
+        serializer = AppinfoSerializer(appinfo, data=request.data)
        
         if request.user.is_superuser or application.company.id == employee.company.id:
             if serializer.is_valid():
@@ -618,3 +726,164 @@ class FileStateViewSet(viewsets.ModelViewSet):
             # print("OS error: {0}".format(err))
             return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response({'data': data})
+
+class NodeViewSet(viewsets.ModelViewSet):
+    def list(self, request):
+        if request.user.is_superuser or True:
+            queryset = Node.objects.all()
+            serializer = NodeSerializer(queryset, many=True)
+            return Response(serializer.data)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+    def retrieve(self, request, pk=None):
+        try:
+            appinfo = Node.objects.get(pk=pk)
+            application = Application.objects.get(pk=appinfo.application.id)
+            employee = Employee.objects.get(user=request.user)
+        except Node.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist: 
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            serializer = AppinfoSerializer(appinfo)
+            return Response(serializer.data)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+    
+    def create(self, request):
+        try: 
+            app_id = request.data.pop('application')
+            application = Application.objects.get(pk=app_id) 
+            node = Node.objects.create(application=application, **request.data)
+            serializer = NodeSerializer(node)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except IntegrityError:
+            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+    
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    def update(self, request, pk=None):
+        try:
+            employee = Employee.objects.get(user=request.user)
+            node = Node.objects.get(pk=pk)
+            application = Application.objects.get(pk=node.application.id)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Node.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        request.data['application'] = application.id
+        serializer = NodeSerializer(node, data=request.data)
+       
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+    def destroy(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            node = Node.objects.get(pk=pk)
+            application = Application.objects.get(pk=node.application.id)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Node.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            node.delete()
+            return Response({'msg': "node deleted"}, status=status.HTTP_204_NO_CONTENT)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+class TagViewSet(viewsets.ModelViewSet):
+    def list(self, request):
+        if request.user.is_superuser or True:
+            queryset = Tag.objects.all()
+            serializer = TagSerializer(queryset, many=True)
+            return Response(serializer.data)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+    def retrieve(self, request, pk=None):
+        try:
+            tag = Tag.objects.get(pk=pk)
+            application = Application.objects.get(pk=contact.application.id)
+            employee = Employee.objects.get(user=request.user)
+        except Tag.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist: 
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        # user = User.objects.get(pk=employee.user.id)
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            serializer = TagSerializer(tag)
+            return Response(serializer.data)
+
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+    
+    def create(self, request):
+        # serializer = ContactSerializer(data=request.data)
+        try: 
+            app_id = request.data.pop('application')
+            application = Application.objects.get(pk=app_id) 
+
+            tag = Tag.objects.create(application=application, **request.data)
+            serializer = TagSerializer(tag)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except IntegrityError:
+            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+    
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    def update(self, request, pk=None):
+        try:
+            employee = Employee.objects.get(user=request.user)
+            tag = Tag.objects.get(pk=pk)
+            application = Application.objects.get(pk=tag.application.id)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Tag.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        request.data['application'] = application.id
+        serializer = TagSerializer(tag, data=request.data)
+       
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+    def destroy(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            tag = Tag.objects.get(pk=pk)
+            application = Application.objects.get(pk=tag.application.id)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Tag.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            tag.delete()
+            return Response({'msg': "tag deleted"}, status=status.HTTP_204_NO_CONTENT)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
