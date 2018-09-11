@@ -33,6 +33,8 @@ router.register(r'contacts', ContactViewSet, base_name='contact')
 router.register(r'appinfos', AppinfoViewSet, base_name='appinfo')
 router.register(r'files', FileViewSet, base_name='file')
 router.register(r'files/(?P<file_id>[0-9]+)/states', FileStateViewSet, base_name='fileState')
+router.register(r'nodes', NodeViewSet, base_name='node')
+router.register(r'tags', TagViewSet, base_name='tag')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

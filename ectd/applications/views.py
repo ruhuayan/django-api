@@ -121,7 +121,7 @@ class ApplicationViewSet(viewsets.ViewSet):
 
     def list(self, request):
         if request.user.is_superuser or True:
-            queryset = Application.objects.all()
+            queryset = Application.objects.all().filter(deleted=False)
             serializer = ApplicationSerializer(queryset, many=True)
             return Response(serializer.data)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -151,6 +151,7 @@ class ApplicationViewSet(viewsets.ViewSet):
             
             if not company.activated:
                 print('company not activated')
+            # need to add nodes from template
 
             application = Application.objects.create(company=company, template=template, **request.data)
             serializer = ApplicationSerializer(application)
@@ -188,7 +189,8 @@ class ApplicationViewSet(viewsets.ViewSet):
             employee = Employee.objects.get(user=request.user)
             application = Application.objects.get(pk=pk)
             if  application.company.id == employee.company.id and employee.role=='ADMIN':
-                Application.delete = True
+                application.deleted = True
+                application.deleted_by = request.user
                 return Response({'msg': "application deleted"}, status=status.HTTP_204_NO_CONTENT)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         except Employee.DoesNotExist:
@@ -203,7 +205,7 @@ class ApplicationViewSet(viewsets.ViewSet):
             employee = Employee.objects.get(user=request.user)
             application = Application.objects.get(pk=pk)
             if request.user.is_superuser or application.company.id == employee.company.id:
-                queryset = Contact.objects.get(application=application)
+                queryset = Contact.objects.all().filter(application=application)
                 serializer = ContactSerializer(queryset, many=True)
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -212,15 +214,32 @@ class ApplicationViewSet(viewsets.ViewSet):
         except Application.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
-    #API: /applications/5/appinfo
+    #API: /applications/1/files
     @action(methods=['get'], detail=True,)
-    def appinfo(self, request, pk=None):
+    def files(self, request, pk=None):
         try: 
             employee = Employee.objects.get(user=request.user)
             application = Application.objects.get(pk=pk)
             if request.user.is_superuser or application.company.id == employee.company.id:
-                appinfo = Appinfo.objects.get(application=application)
-                serializer = AppinfoSerializer(appinfo)
+                queryset = File.objects.all().filter(application=application)
+                serializer = FileSerializer(queryset, many=True)
+                return Response(serializer.data)
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        except Employee.DoesNotExist:
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            
+    #API: /applications/5/appinfo
+    @action(methods=['get'], detail=True,)
+    def appinfos(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            application = Application.objects.get(pk=pk)
+            if request.user.is_superuser or application.company.id == employee.company.id:
+                appinfo = Appinfo.objects.all().filter(application=application)
+                print(repr(appinfo))
+                serializer = AppinfoSerializer(appinfo, many=False)
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         except Employee.DoesNotExist:
@@ -235,7 +254,7 @@ class ApplicationViewSet(viewsets.ViewSet):
             employee = Employee.objects.get(user=request.user)
             application = Application.objects.get(pk=pk)
             if request.user.is_superuser or application.company.id == employee.company.id:
-                nodes = Node.objects.get(application=application)
+                nodes = Node.objects.all().filter(application=application)
                 serializer = AppinfoSerializer(nodes, many=True)
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -251,7 +270,7 @@ class ApplicationViewSet(viewsets.ViewSet):
             employee = Employee.objects.get(user=request.user)
             application = Application.objects.get(pk=pk)
             if request.user.is_superuser or application.company.id == employee.company.id:
-                tags = Node.objects.get(application=application)
+                tags = Node.objects.all().filter(application=application)
                 serializer = TagSerializer(tags, many=True)
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)

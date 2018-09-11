@@ -15,6 +15,8 @@ class AuditModel(models.Model):
 class ManagerModel(models.Model):
     creator = models.OneToOneField(User, related_name='creator', on_delete=models.PROTECT) 
     updated_by = models.ForeignKey(User, on_delete=models.PROTECT)
+    class Meta:
+        abstract = True
 
 class Template(AuditModel):
     DESTINATION__CHOICES = (('CN', 'CN'), ('US', 'US'))
