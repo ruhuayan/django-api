@@ -938,10 +938,13 @@ class PdfFileWriter(object):
             NameObject('/URI'): TextStringObject(uri)
         })
         lnk = DictionaryObject()
+        # steelblue [0.27451  0.50980  0.70588], blue [0, 0, 1]
+        color = [0.27451, 0.50980, 0.70588]
         lnk.update({
             NameObject('/Type'): NameObject('/Annot'),
             NameObject('/Subtype'): NameObject('/Link'),
             NameObject('/P'): pageLink,
+            NameObject("/C"): ArrayObject([FloatObject(c) for c in color]),
             NameObject('/Rect'): rect,
             NameObject('/H'): NameObject('/I'),
             NameObject('/Border'): ArrayObject(borderArr),
@@ -1103,7 +1106,7 @@ class PdfFileWriter(object):
     pageMode = property(getPageMode, setPageMode)
     """Read and write property accessing the :meth:`getPageMode()<PdfFileWriter.getPageMode>`
     and :meth:`setPageMode()<PdfFileWriter.setPageMode>` methods."""
-
+    
 
 class PdfFileReader(object):
     """

@@ -32,7 +32,7 @@ router.register(r'employees', EmployeeViewSet, base_name='employee')
 router.register(r'contacts', ContactViewSet, base_name='contact')
 router.register(r'appinfos', AppinfoViewSet, base_name='appinfo')
 router.register(r'files', FileViewSet, base_name='file')
-router.register(r'files/(?P<file_id>[0-9]+)/states', FileStateViewSet, base_name='fileState')
+router.register(r'files/(?P<file_id>\d+)/states', FileStateViewSet, base_name='fileState')
 router.register(r'nodes', NodeViewSet, base_name='node')
 router.register(r'tags', TagViewSet, base_name='tag')
 
