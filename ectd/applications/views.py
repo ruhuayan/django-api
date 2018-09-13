@@ -693,6 +693,7 @@ class FileStateViewSet(viewsets.ModelViewSet):
     #     return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
     
     def create(self, request, file_id=None):
+        #"action": "{\"links\":[{\"pageNum\":0, \"rect\":[0, 0, 20, 10], \"uri\":\"www.richyan.com\"}]}"
         try: 
             f = File.objects.get(pk=file_id)
             application = Application.objects.get(pk=f.application.id) 
@@ -705,13 +706,14 @@ class FileStateViewSet(viewsets.ModelViewSet):
                 pdf = PdfFileReader(open(f.url+'/'+f.name, 'rb'))
                 writer = PdfFileWriter()
 
-                for i in range(0,pdf.getNumPages()):
+                for i in range(0, pdf.getNumPages()):
                     writer.addPage(pdf.getPage(i))
                 
                 for link in links:
                     print(repr(link))
+                    writer.addHighlight(link['pageNum'], link['rect'])
                     writer.addURI(link['pageNum'], link['uri'], link['rect'])
-                
+
                 output_path = f.url+'/states/'
                 try:
                     if not os.path.exists(output_path):

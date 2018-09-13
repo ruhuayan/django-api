@@ -917,13 +917,13 @@ class PdfFileWriter(object):
         pageLink = self.getObject(self._pages)['/Kids'][pagenum]
         pageRef = self.getObject(pageLink)
 
-        if border is not None:
-            borderArr = [NameObject(n) for n in border[:3]]
-            if len(border) == 4:
-                dashPattern = ArrayObject([NameObject(n) for n in border[3]])
-                borderArr.append(dashPattern)
-        else:
-            borderArr = [NumberObject(2)] * 3
+        # if border is not None:
+        #     borderArr = [NameObject(n) for n in border[:3]]
+        #     if len(border) == 4:
+        #         dashPattern = ArrayObject([NameObject(n) for n in border[3]])
+        #         borderArr.append(dashPattern)
+        # else:
+        #     borderArr = [NumberObject(2)] * 3
 
         if isString(rect):
             rect = NameObject(rect)
@@ -939,23 +939,74 @@ class PdfFileWriter(object):
         })
         lnk = DictionaryObject()
         # steelblue [0.27451  0.50980  0.70588], blue [0, 0, 1]
-        color = [0.27451, 0.50980, 0.70588]
+        
         lnk.update({
             NameObject('/Type'): NameObject('/Annot'),
             NameObject('/Subtype'): NameObject('/Link'),
             NameObject('/P'): pageLink,
-            NameObject("/C"): ArrayObject([FloatObject(c) for c in color]),
+            # NameObject("/C"): ArrayObject([FloatObject(c) for c in color]),
             NameObject('/Rect'): rect,
             NameObject('/H'): NameObject('/I'),
-            NameObject('/Border'): ArrayObject(borderArr),
+            # NameObject('/Border'): ArrayObject(borderArr),
             NameObject('/A'): lnk2
         })
         lnkRef = self._addObject(lnk)
 
+        # color = [0, 0, 1]
+        # highlight = DictionaryObject()
+        # highlight.update({
+        #     NameObject("/F"): NumberObject(4),
+        #     NameObject("/Type"): NameObject("/Annot"),
+        #     NameObject("/Subtype"): NameObject("/Highlight"),
+        #     NameObject("/C"): ArrayObject([FloatObject(c) for c in color]),
+        #     NameObject('/Rect'): rect
+        # })
+        # highlightRef = self._addObject(highlight)
+
         if "/Annots" in pageRef:
             pageRef['/Annots'].append(lnkRef)
+            # pageRef['/Annots'].append(highlightRef)
+
         else:
             pageRef[NameObject('/Annots')] = ArrayObject([lnkRef])
+            # pageRef[NameObject('/Annots')] = ArrayObject([highlightRef])
+
+    def addHighlight(self, pagenum, rect, color = [0.27451,  0.50980,  0.70588]):
+        pageLink = self.getObject(self._pages)['/Kids'][pagenum]
+        pageRef = self.getObject(pageLink)
+        
+        highlight = DictionaryObject()
+        x1, y1, x2, y2 = rect
+        highlight.update({
+            NameObject("/F"): NumberObject(4),
+            NameObject("/Type"): NameObject("/Annot"),
+            NameObject("/Subtype"): NameObject("/Highlight"),
+
+            # NameObject("/T"): TextStringObject(meta["author"]),
+            # NameObject("/Contents"): TextStringObject(meta["contents"]),
+            NameObject("/C"): ArrayObject([FloatObject(c) for c in color]),
+            NameObject("/Rect"): ArrayObject([
+                FloatObject(x1),
+                FloatObject(y1),
+                FloatObject(x2),
+                FloatObject(y2)
+            ]),
+            NameObject("/QuadPoints"): ArrayObject([
+                FloatObject(x1),
+                FloatObject(y2),
+                FloatObject(x2),
+                FloatObject(y2),
+                FloatObject(x1),
+                FloatObject(y1),
+                FloatObject(x2),
+                FloatObject(y1)
+            ]),
+        })
+        highlightRef = self._addObject(highlight)
+        if "/Annots" in pageRef:
+            pageRef['/Annots'].append(highlightRef)
+        else:
+            pageRef[NameObject('/Annots')] = ArrayObject([highlightRef])
 
     def addLink(self, pagenum, pagedest, rect, border=None, fit='/Fit', *args):
         """
