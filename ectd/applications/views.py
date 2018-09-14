@@ -15,6 +15,13 @@ import os
 import uuid
 import json
 from ectd.PyPDF2 import PdfFileWriter, PdfFileReader
+
+from ectd.PyPDF2.canvas import drawBackground, drasString
+import io
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.graphics.shapes import Rect
+from reportlab.lib.colors import Color
 # from ectd.PyPDF2.PyPDF2Highlight import createHighlight, addHighlightToPage
 # from rest_framework import mixins
 # from rest_framework import generics
@@ -94,7 +101,7 @@ class CompanyViewSet(viewsets.ViewSet):
             employee = Employee.objects.get(user=request.user)
             company = Company.objects.get(pk=pk)
             if request.user.is_superuser or company.id == employee.company.id:
-                apps = Application.objects.get(company=company)
+                apps = Application.objects.filter(company=company)
                 serializer = ApplicationSerializer(apps, many=True)
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -110,7 +117,7 @@ class CompanyViewSet(viewsets.ViewSet):
             employee = Employee.objects.get(user=request.user)
             company = Company.objects.get(pk=pk)
             if request.user.is_superuser or company.id == employee.company.id:
-                emps = Employee.objects.get(company=company)
+                emps = Employee.objects.filter(company=company)
                 serializer = EmployeeSerializer(emps, many=True)
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -632,8 +639,8 @@ class FileUploadView(APIView):
         if up_file.size > 100000000: #100M
             return Response({'msg': 'File size over limit'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
         file_folder = uuid.uuid4().hex
-        #path = '/Users/nebula-ai/Desktop/django/ltd'+application.company.id+'/app_'+ app_id +'/'+file_folder         # MAC path
-        path = 'C:/shares/django/app_'+app_id+'/'+file_folder  # Window path
+        path = '/Users/nebula-ai/Desktop/django/app_'+ app_id +'/'+file_folder         # MAC path
+        # path = 'C:/shares/django/app_'+app_id+'/'+file_folder  # Window path
         url = path+'/' + up_file.name
         try:
             if not os.path.exists(path):
@@ -707,12 +714,29 @@ class FileStateViewSet(viewsets.ModelViewSet):
                 writer = PdfFileWriter()
 
                 for i in range(0, pdf.getNumPages()):
-                    writer.addPage(pdf.getPage(i))
-                
+                    page = pdf.getPage(i)
+                    for link in links:
+                        if i==link['pagenum']:
+                            # writer.addURI(i, link['uri'], link['rect'])
+                            x1, y1, x2, y2 = link['rect']
+                            w = x2 - x1
+                            h = y2 - y1
+                            packet = io.BytesIO()
+                            blue50transparent = Color( 0, 0, 255, alpha=0.5)
+                            can = canvas.Canvas(packet, pagesize=letter)
+                            can.setFillColor(blue50transparent)
+                            can.rect(300,75,100,100, fill=True, stroke=False)
+                            can.save()
+                            packet.seek(0)
+                            new_pdf = PdfFileReader(packet)
+                            page.mergePage(new_pdf.getPage(0))
+                            
+                    writer.addPage(page)
+                    
                 for link in links:
                     print(repr(link))
-                    writer.addHighlight(link['pageNum'], link['rect'])
-                    writer.addURI(link['pageNum'], link['uri'], link['rect'])
+                    # writer.addHighlight(link['pageNum'], link['rect'])
+                    writer.addURI(link['pagenum'], link['uri'], link['rect'])
 
                 output_path = f.url+'/states/'
                 try:
