@@ -916,7 +916,7 @@ class PdfFileWriter(object):
 
         pageLink = self.getObject(self._pages)['/Kids'][pagenum]
         pageRef = self.getObject(pageLink)
-        self.addBackground(pageRef, pagenum, rect)
+        # self.addBackground(pageRef, pagenum, rect)
         # if border is not None:
         #     borderArr = [NameObject(n) for n in border[:3]]
         #     if len(border) == 4:

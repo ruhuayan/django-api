@@ -12,11 +12,11 @@ class AuditModel(models.Model):
     class Meta:
         abstract = True
 
-class ManagerModel(models.Model):
-    creator = models.OneToOneField(User, related_name='creator', on_delete=models.PROTECT) 
-    updated_by = models.ForeignKey(User, on_delete=models.PROTECT)
-    class Meta:
-        abstract = True
+# class ManagerModel(models.Model):
+#     creator = models.OneToOneField(User, related_name='creator', on_delete=models.PROTECT) 
+#     updated_by = models.ForeignKey(User, on_delete=models.PROTECT)
+#     class Meta:
+#         abstract = True
 
 class Template(AuditModel):
     DESTINATION__CHOICES = (('CN', 'CN'), ('US', 'US'))
@@ -47,7 +47,7 @@ class Application(AuditModel): #ManagerModel
     
 class Employee(AuditModel):
     ROLE_CHOICES = (('ADMIN', 'ADMIN'), ('MGER', 'MANAGER'), ('BAS', 'BASIC'))
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True,)
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='employees')
     firstName = models.CharField(max_length = 50, null=True)
     lastName = models.CharField(max_length = 50, null=True)
@@ -62,7 +62,7 @@ class Contact(AuditModel): #ManagerModel
     email = models.EmailField(max_length=50)
 
 class Appinfo(AuditModel):
-    application = models.OneToOneField(Application, on_delete=models.CASCADE)
+    application = models.OneToOneField(Application, on_delete=models.CASCADE, primary_key=True,)
     dunso = models.CharField(max_length=15)
     companyName = models.CharField(max_length=50)
     description = models.CharField(max_length=50)
@@ -88,18 +88,23 @@ class FileState(models.Model):
     path = models.FilePathField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
 
-class Node(models.Model):
+class Node(AuditModel):
+    TYPE_CHOICES = (('ROOT', 'ROOT'),('DEFAULT', 'DEFAULT'), ('FOLDER', 'FOLDER'), ('FILE', 'FILE'), ('TAG', 'TAG'))
+    nid = models.AutoField(primary_key=True)
     application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='nodes')
+    id = models.CharField(max_length=10, choices=TYPE_CHOICES, default='DEFAULT')
     name = models.CharField(max_length=100)
     text = models.CharField(max_length=100)
     type = models.CharField(max_length=15)
     sNumber = models.CharField(max_length=15)
     parent = models.CharField(max_length=15)
     original = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('application', 'nid',)
 
 class Tag(AuditModel):
-    node = models.OneToOneField(Node, on_delete=models.CASCADE)
+    node = models.OneToOneField(Node, on_delete=models.CASCADE, primary_key=True,)
     sNumber = models.CharField(max_length=15)
     title = models.CharField(max_length=50)
     eCode = models.CharField(max_length=50)

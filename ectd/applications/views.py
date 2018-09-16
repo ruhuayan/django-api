@@ -1,16 +1,19 @@
 # from django.shortcuts import render
 from ectd.applications.models import *
-from rest_framework import viewsets, status
+from ectd.applications.serializers import *
+from ectd.extra.msg import Msg
 # from django.core import serializers as core_serializers
 # from django.http import JsonResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from ectd.applications.serializers import *
+from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.parsers import FileUploadParser, MultiPartParser, FormParser
-from ectd.extra.msg import Msg
-from django.db import IntegrityError
 from rest_framework.decorators import action
+
+from django.db import IntegrityError
+from django.db import transaction
+
 import os
 import uuid
 import json
@@ -160,10 +163,17 @@ class ApplicationViewSet(viewsets.ViewSet):
             
             if not company.activated:
                 print('company not activated')
-            # need to add nodes from template
-
-            application = Application.objects.create(company=company, template=template, **request.data)
-            serializer = ApplicationSerializer(application)
+            # add nodes from template
+            nodes = json.loads(template.content)
+            if not len(nodes): 
+                raise ValueError('no nodes')
+            with transaction.atomic():
+                application = Application.objects.create(company=company, template=template, **request.data)
+                for n in nodes:
+                    # print(n, repr(application))
+                    n['original'] = True;
+                    node = Node.objects.create(application=application, **n)
+            serializer = ApplicationSerializer(application) 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except Employee.DoesNotExist:
             return Response({'msg': 'Employee Not Found'},status=status.HTTP_404_NOT_FOUND )
@@ -173,6 +183,11 @@ class ApplicationViewSet(viewsets.ViewSet):
             return Response({'msg': 'User has not a company'},status=status.HTTP_404_NOT_FOUND )
         except IntegrityError:
             return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+        except ValueError:
+            return Response({'msg': 'template content error'}, status=status.HTTP_204_NO_CONTENT)
+        except Exception as error:
+            print(repr(error))
+            return Response({'msg': 'error creating application'}, status=status.HTTP_204_NO_CONTENT)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -267,7 +282,7 @@ class ApplicationViewSet(viewsets.ViewSet):
             application = Application.objects.get(pk=pk)
             if request.user.is_superuser or application.company.id == employee.company.id:
                 nodes = Node.objects.filter(application=application)
-                serializer = AppinfoSerializer(nodes, many=True)
+                serializer = NodeSerializer(nodes, many=True)
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         except Employee.DoesNotExist:
@@ -281,8 +296,10 @@ class ApplicationViewSet(viewsets.ViewSet):
         try: 
             employee = Employee.objects.get(user=request.user)
             application = Application.objects.get(pk=pk)
+            
             if request.user.is_superuser or application.company.id == employee.company.id:
-                tags = Node.objects.filter(application=application)
+                nodes = Node.objects.filter(application=application)
+                tags = Tag.objects.filter(node__in=nodes)
                 serializer = TagSerializer(tags, many=True)
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -584,16 +601,78 @@ class FileViewSet(viewsets.ModelViewSet):
     def read_file(self, request, pk=None):
         try:
             file = File.objects.get(pk=pk)
+            application = Application.objects.get(pk=file.application.id)
+            employee = Employee.objects.get(user=request.user)
         except File.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist: 
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if not request.user.is_superuser and not application.company.id == employee.company.id:
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
         try: 
             with open(file.url+'/'+file.name, 'r') as f:
                 data = f.read() 
+            return Response({'data': data})
         except OSError:
             # print("OS error: {0}".format(err))
-            return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'msg': 'Cannot read file from server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    @action(methods=['get'], detail=True,)
+    def last_file(self, request, pk=None):
+        try:
+            file = File.objects.get(pk=pk)
+            states = FileState.objects.filter(file=file)
+            application = Application.objects.get(pk=file.application.id)
+            employee = Employee.objects.get(user=request.user)
+            if not states:
+                return Response(MSG.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            state = states[-1]
+        except File.DoesNotExist:
+            return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except FileState.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist: 
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            
+        if not request.user.is_superuser and not application.company.id == employee.company.id:
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        try: 
+            with open(state.path+'/'+file.name, 'r') as f:
+                data = f.read() 
+        except OSError:
+            return Response({'msg': 'Cannot read file from server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response({'data': data})
 
+    @action(methods=['get'], detail=True,)
+    def last_state(self, request, pk=None):
+        try:
+            file = File.objects.get(pk=pk)
+            application = Application.objects.get(pk=file.application.id)
+            employee = Employee.objects.get(user=request.user)
+
+            if not request.user.is_superuser and not application.company.id == employee.company.id:
+                return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+            states = FileState.objects.filter(file=file)
+            if not states:
+                return Response(MSG.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            state = states[-1]
+        except File.DoesNotExist:
+            return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except FileState.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist: 
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = FileStateSerializer(state)
+        return Response(serializer.data)
     def destroy(self, request, pk=None):
         try: 
             employee = Employee.objects.get(user=request.user)
@@ -607,8 +686,6 @@ class FileViewSet(viewsets.ModelViewSet):
             return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
 
         if request.user.is_superuser or application.company.id == employee.company.id:
-            # setattr(file, 'deleted', 'True')
-            # print(getattr(file,'deleted'))
             file.deleted = True
             file.save()
             return Response({'msg': 'file deleted'}, status=status.HTTP_204_NO_CONTENT)
@@ -662,7 +739,6 @@ class FileStateViewSet(viewsets.ModelViewSet):
     def list(self, request, file_id=None):
         try:
             file = File.objects.get(pk=file_id)
-            # print(file.url)
             application = Application.objects.get(pk=file.application.id)
             employee = Employee.objects.get(user=request.user)
         except File.DoesNotExist:
@@ -706,54 +782,86 @@ class FileStateViewSet(viewsets.ModelViewSet):
             application = Application.objects.get(pk=f.application.id) 
             employee = Employee.objects.get(user=request.user) 
 
-            if application.company.id == employee.company.id:
-                actions = json.loads(request.data['action'])
+            if application.company.id!=employee.company.id:
+                return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+            
+            actions = json.loads(request.data['action'])
+            if 'links' not in actions:
+                links = None
+            else: 
                 links = actions['links']
-                # texts = actions['texts']
-                pdf = PdfFileReader(open(f.url+'/'+f.name, 'rb'))
-                writer = PdfFileWriter()
+                
+            if 'texts' not in actions:
+                texts = None
+            else: 
+                texts = actions['texts']
+            if not links and not texts:
+                return Response({'msg': 'Not actions found'}, status=status.HTTP_404_NOT_FOUND)
 
-                for i in range(0, pdf.getNumPages()):
-                    page = pdf.getPage(i)
+            pdf = PdfFileReader(open(f.url+'/'+f.name, 'rb'))
+            writer = PdfFileWriter()
+
+            for i in range(0, pdf.getNumPages()):
+                page = pdf.getPage(i)
+                if links:
                     for link in links:
                         if i==link['pagenum']:
                             # writer.addURI(i, link['uri'], link['rect'])
+                            page_w = page.mediaBox.getWidth()
+                            page_h = page.mediaBox.getHeight()
+                            print(page_w, page_h)
                             x1, y1, x2, y2 = link['rect']
                             w = x2 - x1
                             h = y2 - y1
+                            y1 = page_h - y1
+                            y2 = page_h - y2
+                            link['rect'] = [x1, y1, x2, y2]
+                            print(link['rect'])
                             packet = io.BytesIO()
                             blue50transparent = Color( 0, 0, 255, alpha=0.5)
-                            can = canvas.Canvas(packet, pagesize=letter)
+                            can = canvas.Canvas(packet, pagesize=(page_w, page_h))
                             can.setFillColor(blue50transparent)
-                            can.rect(300,75,100,100, fill=True, stroke=False)
+                            can.rect(x1, y1-h, w, h, fill=True, stroke=False)
                             can.save()
                             packet.seek(0)
                             new_pdf = PdfFileReader(packet)
                             page.mergePage(new_pdf.getPage(0))
-                            
-                    writer.addPage(page)
-                    
-                for link in links:
-                    print(repr(link))
-                    # writer.addHighlight(link['pageNum'], link['rect'])
-                    writer.addURI(link['pagenum'], link['uri'], link['rect'])
+                if texts:
+                    for text in texts:
+                        if i==text['pagenum']: 
+                            page_w = page.mediaBox.getWidth()
+                            page_h = page.mediaBox.getHeight()
+                            packet = io.BytesIO()
+                            can = canvas.Canvas(packet, pagesize=(page_w, page_h))
+                            y = page_h - text['y']
+                            can.drawString(text['x'], text['y'], text['txt'])
+                            can.save()
+                            packet.seek(0)    
+                            new_pdf = PdfFileReader(packet)
+                            page.mergePage(new_pdf.getPage(0))
+                writer.addPage(page)
+                
+            for link in links:
+                # print(repr(link['rect']))
+                # writer.addHighlight(link['pageNum'], link['rect'])
+                writer.addURI(link['pagenum'], link['uri'], link['rect'])
 
-                output_path = f.url+'/states/'
-                try:
-                    if not os.path.exists(output_path):
-                        os.mkdir(output_path)
-                    with open(output_path+'/'+f.name, 'wb+') as destination:
-                        writer.write(destination)
-                except OSError as err:
-                    print("OS error: {0}".format(err))
-                    return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
-                # writer.write(open(output_path, "wb"))
-                # with file("destination.pdf", "wb") as outfp:
-                #     writer.write(outfp)
-                fileState = FileState.objects.create(file=f, action=request.data['action'], path=output_path)
-                serializer = FileStateSerializer(fileState)
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-                # return Response(links)
+            output_path = f.url+'/states/'
+            try:
+                if not os.path.exists(output_path):
+                    os.mkdir(output_path)
+                with open(output_path+'/'+f.name, 'wb+') as destination:
+                    writer.write(destination)
+            except OSError as err:
+                print("OS error: {0}".format(err))
+                return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # writer.write(open(output_path, "wb"))
+            # with file("destination.pdf", "wb") as outfp:
+            #     writer.write(outfp)
+            fileState = FileState.objects.create(file=f, action=request.data['action'], path=output_path)
+            serializer = FileStateSerializer(fileState)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            # return Response(links)
         except File.DoesNotExist:
             return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
@@ -762,20 +870,6 @@ class FileStateViewSet(viewsets.ModelViewSet):
             return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
         # except Error:
         #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(methods=['get'], detail=True,)
-    def read_file(self, request, pk=None):
-        try:
-            fileState = FileState.objects.get(pk=pk)
-        except FileState.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        try: 
-            with open(file.url, 'r') as f:
-                data = f.read() 
-        except OSError:
-            # print("OS error: {0}".format(err))
-            return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response({'data': data})
 
 class NodeViewSet(viewsets.ModelViewSet):
     def list(self, request):
@@ -812,7 +906,7 @@ class NodeViewSet(viewsets.ModelViewSet):
         except Application.DoesNotExist:
             return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError:
-            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+            return Response({'msg': 'IntegrityError'}, status=status.HTTP_406_NOT_ACCEPTABLE)
     
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -852,6 +946,8 @@ class NodeViewSet(viewsets.ModelViewSet):
             return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
 
         if request.user.is_superuser or application.company.id == employee.company.id:
+            if node.original:
+                return Response({'msg', 'original node cant be deleted'}, status=status.HTTP_406_NOT_ACCEPTABLE )
             node.delete()
             return Response({'msg': "node deleted"}, status=status.HTTP_204_NO_CONTENT)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -864,46 +960,60 @@ class TagViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
-    def retrieve(self, request, pk=None):
+    def retrieve(self, request, node_id=None):
         try:
-            tag = Tag.objects.get(pk=pk)
-            application = Application.objects.get(pk=contact.application.id)
+            node = Node.objects.get(pk=node_id)
+            application = Application.objects.get(pk=node.application.id)
             employee = Employee.objects.get(user=request.user)
+            tags = Tag.objects.filter(node=node)
+        except Node.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Tag.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
             return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
             return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
-        # user = User.objects.get(pk=employee.user.id)
+
         if request.user.is_superuser or application.company.id == employee.company.id:
+            if not tags: 
+                return Response(MSG.TAG_NOT_FOUND, status=status.HTTP_404_NOT_FOUND )
+            tag = tags[0]
             serializer = TagSerializer(tag)
             return Response(serializer.data)
 
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
     
-    def create(self, request):
-        # serializer = ContactSerializer(data=request.data)
+    def create(self, request, node_id=None):
         try: 
-            app_id = request.data.pop('application')
-            application = Application.objects.get(pk=app_id) 
+            node = Node.objects.ger(pk=node_id)
+            application = Application.objects.get(pk=node.application.id) 
+            employee = Employee.objects.get(user=request.user)
 
-            tag = Tag.objects.create(application=application, **request.data)
-            serializer = TagSerializer(tag)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            if application.company.id == employee.company.id:
+                tag = Tag.objects.create(node=node, **request.data)
+                serializer = TagSerializer(tag)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+            
+        except Node.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
             return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist: 
+            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError:
             return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
     
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-    def update(self, request, pk=None):
+    def update(self, request, node_id=None, pk=None):
         try:
+            node = Node.objects.ger(pk=node_id)
+            application = Application.objects.get(pk=node.application.id) 
             employee = Employee.objects.get(user=request.user)
             tag = Tag.objects.get(pk=pk)
-            application = Application.objects.get(pk=tag.application.id)
         except Employee.DoesNotExist:
             return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
         except Tag.DoesNotExist:
@@ -911,7 +1021,7 @@ class TagViewSet(viewsets.ModelViewSet):
         except Application.DoesNotExist:
             return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
         
-        request.data['application'] = application.id
+        # request.data['application'] = application.id
         serializer = TagSerializer(tag, data=request.data)
        
         if request.user.is_superuser or application.company.id == employee.company.id:
