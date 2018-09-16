@@ -48,7 +48,7 @@ class CompanyViewSet(viewsets.ViewSet):
             company = Company.objects.get(pk=pk)
             print(company.employees)
         except Company.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.COMPANY_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
         if request.user.is_superuser or True:
             serializer = CompanySerializer(company)
@@ -59,7 +59,7 @@ class CompanyViewSet(viewsets.ViewSet):
     def create(self, request):
         try: 
             company = Company.objects.create(**request.data)
-            print(repr(company))
+            # print(repr(company))
             employee = Employee.objects.create(user=request.user, company=company, role='ADMIN')
             # serializer_comp = CompanySerializer(company)
             serializer = CompanySerializer(company)
@@ -67,7 +67,7 @@ class CompanyViewSet(viewsets.ViewSet):
         except IntegrityError:
             if company:
                 company.delete()
-            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+            return Response(Msg.INTETRITY_ERROR, status.HTTP_406_NOT_ACCEPTABLE)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -76,7 +76,7 @@ class CompanyViewSet(viewsets.ViewSet):
         try:
             company = Company.objects.get(pk=pk)
         except Company.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.COMPANY_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         serializer = CompanySerializer(company, data=request.data)
         if request.user.is_superuser or request.user == company.owner:
             if serializer.is_valid():
@@ -91,7 +91,7 @@ class CompanyViewSet(viewsets.ViewSet):
         try:
             company = Company.objects.get(pk=pk)
         except Company.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.COMPANY_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         # company.delete()
         company.deleted = True
         company.deleted_by = request.user
@@ -109,7 +109,7 @@ class CompanyViewSet(viewsets.ViewSet):
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Company.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND) 
 
@@ -125,9 +125,9 @@ class CompanyViewSet(viewsets.ViewSet):
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Company.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.COMPANY_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
 class ApplicationViewSet(viewsets.ViewSet):
 
@@ -145,7 +145,7 @@ class ApplicationViewSet(viewsets.ViewSet):
         except Application.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'},status=status.HTTP_404_NOT_FOUND )    
+            return Response(Msg.EMPLOYEE_NOT_FOUND,status=status.HTTP_404_NOT_FOUND )    
         
         if request.user.is_superuser or application.company.id == employee.company.id:
             serializer = ApplicationSerializer(application)
@@ -170,19 +170,19 @@ class ApplicationViewSet(viewsets.ViewSet):
             with transaction.atomic():
                 application = Application.objects.create(company=company, template=template, **request.data)
                 for n in nodes:
-                    # print(n, repr(application))
                     n['original'] = True;
                     node = Node.objects.create(application=application, **n)
+                    #need to create folders
             serializer = ApplicationSerializer(application) 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'},status=status.HTTP_404_NOT_FOUND )
+            return Response(Msg.EMPLOYEE_NOT_FOUND,status=status.HTTP_404_NOT_FOUND )
         except Template.DoesNotExist:
-            return Response({'msg': 'Template Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.TEMPLATE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Company.DoesNotExist:
-            return Response({'msg': 'User has not a company'},status=status.HTTP_404_NOT_FOUND )
+            return Response(Msg.COMPANY_NOT_FOUND,status=status.HTTP_404_NOT_FOUND )
         except IntegrityError:
-            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+            return Response(Msg.INTETRITY_ERROR, status.HTTP_406_NOT_ACCEPTABLE)
         except ValueError:
             return Response({'msg': 'template content error'}, status=status.HTTP_204_NO_CONTENT)
         except Exception as error:
@@ -196,9 +196,9 @@ class ApplicationViewSet(viewsets.ViewSet):
             application = Application.objects.get(pk=pk)
             employee = Employee.objects.get(user=request.user)
         except Application.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'},status=status.HTTP_404_NOT_FOUND) 
+            return Response(Msg.EMPLOYEE_NOT_FOUND,status=status.HTTP_404_NOT_FOUND) 
         serializer = ApplicationSerializer(application, data=request.data)
        
         if request.user.is_superuser or application.company.id == employee.company.id:
@@ -220,7 +220,7 @@ class ApplicationViewSet(viewsets.ViewSet):
         except Employee.DoesNotExist:
             return Response({'msg': 'User is not an owner'},status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION )
         except Application.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
     
     #API: /applications/5/contacts
     @action(methods=['get'], detail=True,)
@@ -234,9 +234,9 @@ class ApplicationViewSet(viewsets.ViewSet):
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
     #API: /applications/1/files
     @action(methods=['get'], detail=True,)
@@ -250,9 +250,9 @@ class ApplicationViewSet(viewsets.ViewSet):
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
             
     #API: /applications/5/appinfo
     @action(methods=['get'], detail=True,)
@@ -267,12 +267,12 @@ class ApplicationViewSet(viewsets.ViewSet):
                     # print(repr(appinfo))
                     serializer = AppinfoSerializer(appinfo)
                     return Response(serializer.data)
-                return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+                return Response(Msg.APPINFO_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
     #API: /applications/5/nodes
     @action(methods=['get'], detail=True,)
@@ -286,9 +286,9 @@ class ApplicationViewSet(viewsets.ViewSet):
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
     #API: /applications/5/tags
     @action(methods=['get'], detail=True,)
@@ -304,9 +304,9 @@ class ApplicationViewSet(viewsets.ViewSet):
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)  
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)  
     
     #API: /application/5/download
     @action(methods=['get'], detail=True,)
@@ -315,12 +315,12 @@ class ApplicationViewSet(viewsets.ViewSet):
             employee = Employee.objects.get(user=request.user)
             application = Application.objects.get(pk=pk)
             if request.user.is_superuser or application.company.id == employee.company.id:
-                pass
+                return Response({'data': 'folders and files'})
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)      
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)      
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     def list(self, request):
@@ -355,9 +355,9 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         except User.DoesNotExist:
             return Response({'msg': 'User Not Found'},status=status.HTTP_404_NOT_FOUND )
         except Company.DoesNotExist:
-            return Response({'msg': 'Company Not Found'},status=status.HTTP_404_NOT_FOUND )
+            return Response(Msg.COMPANY_NOT_FOUND,status=status.HTTP_404_NOT_FOUND )
         except IntegrityError:
-            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+            return Response(Msg.INTETRITY_ERROR, status=status.HTTP_406_NOT_ACCEPTABLE)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -390,7 +390,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
 class ContactViewSet(viewsets.ModelViewSet):
     def list(self, request):
-        if request.user.is_superuser or True:
+        if request.user.is_superuser:
             queryset = Contact.objects.all()
             serializer = ContactSerializer(queryset, many=True)
             return Response(serializer.data)
@@ -404,9 +404,9 @@ class ContactViewSet(viewsets.ModelViewSet):
         except Contact.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         # user = User.objects.get(pk=employee.user.id)
         if request.user.is_superuser or application.company.id == employee.company.id:
             serializer = ContactSerializer(contact)
@@ -423,9 +423,9 @@ class ContactViewSet(viewsets.ModelViewSet):
             serializer = ContactSerializer(contact)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError:
-            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+            return Response(Msg.INTETRITY_ERROR, status.HTTP_406_NOT_ACCEPTABLE)
     
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -436,11 +436,11 @@ class ContactViewSet(viewsets.ModelViewSet):
             contact = Contact.objects.get(pk=pk)
             application = Application.objects.get(pk=contact.application.id)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Contact.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         
         request.data['application'] = application.id
         serializer = ContactSerializer(contact, data=request.data)
@@ -458,11 +458,11 @@ class ContactViewSet(viewsets.ModelViewSet):
             contact = Contact.objects.get(pk=pk)
             application = Application.objects.get(pk=contact.application.id)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Contact.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.CONTACT_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
         if request.user.is_superuser or application.company.id == employee.company.id:
             contact.delete()
@@ -471,7 +471,7 @@ class ContactViewSet(viewsets.ModelViewSet):
 
 class AppinfoViewSet(viewsets.ModelViewSet):
     def list(self, request):
-        if request.user.is_superuser or True:
+        if request.user.is_superuser:
             queryset = Appinfo.objects.all()
             serializer = AppinfoSerializer(queryset, many=True)
             return Response(serializer.data)
@@ -483,11 +483,11 @@ class AppinfoViewSet(viewsets.ModelViewSet):
             application = Application.objects.get(pk=appinfo.application.id)
             employee = Employee.objects.get(user=request.user)
         except Appinfo.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPINFO_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
         if request.user.is_superuser or application.company.id == employee.company.id:
             serializer = AppinfoSerializer(appinfo)
@@ -502,9 +502,9 @@ class AppinfoViewSet(viewsets.ModelViewSet):
             serializer = AppinfoSerializer(appinfo)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError:
-            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+            return Response(Msg.INTETRITY_ERROR, status.HTTP_406_NOT_ACCEPTABLE)
     
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -515,11 +515,11 @@ class AppinfoViewSet(viewsets.ModelViewSet):
             appinfo = Appinfo.objects.get(pk=pk)
             application = Application.objects.get(pk=appinfo.application.id)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Appinfo.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPINFO_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         
         request.data['application'] = application.id
         serializer = AppinfoSerializer(appinfo, data=request.data)
@@ -537,11 +537,11 @@ class AppinfoViewSet(viewsets.ModelViewSet):
             appinfo = Appinfo.objects.get(pk=pk)
             application = Application.objects.get(pk=appinfo.application.id)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Appinfo.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPINFO_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
         if request.user.is_superuser or application.company.id == employee.company.id:
             appinfo.delete()
@@ -550,7 +550,7 @@ class AppinfoViewSet(viewsets.ModelViewSet):
 
 class FileViewSet(viewsets.ModelViewSet):
     def list(self, request):
-        if request.user.is_superuser or True:
+        if request.user.is_superuser:
             queryset = File.objects.all().filter(deleted=False)
             serializer = FileSerializer(queryset, many=True)
             return Response(serializer.data)
@@ -562,11 +562,11 @@ class FileViewSet(viewsets.ModelViewSet):
             application = Application.objects.get(pk=file.application.id)
             employee = Employee.objects.get(user=request.user)
         except File.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         
         if request.user.is_superuser or application.company.id == employee.company.id:
             serializer = FileSerializer(file)
@@ -574,29 +574,46 @@ class FileViewSet(viewsets.ModelViewSet):
 
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
     
-    # def update(self, request, pk=None):
-    #     return Response({'msg': 'Cannot update file'}, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+    def update(self, request, pk=None):   
+        try:
+            employee = Employee.objects.get(user=request.user)
+            file = File.objects.get(pk=pk)
+            application = Application.objects.get(pk=file.application.id)
+        except Employee.DoesNotExist:
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except File.DoesNotExist:
+            return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         
-    #     try:
-    #         employee = Employee.objects.get(user=request.user)
-    #         file = File.objects.get(pk=pk)
-    #         application = Application.objects.get(pk=file.application.id)
-    #     except Employee.DoesNotExist:
-    #         return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
-    #     except File.DoesNotExist:
-    #         return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-    #     except Application.DoesNotExist:
-    #         return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
-        
-    #     request.data['application'] = application.id
-    #     serializer = FileSerializer(contact, data=request.data)
+        request.data['application'] = application.id
+        serializer = FileSerializer(contact, data=request.data)
        
-    #     if request.user.is_superuser or application.company.id == employee.company.id:
-    #         if serializer.is_valid():
-    #             serializer.save()
-    #             return Response(serializer.data)
-    #         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    #     return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+    def destroy(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            file = File.objects.get(pk=pk)
+            application = Application.objects.get(pk=file.application.id)
+        except Employee.DoesNotExist:
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except File.DoesNotExist:
+            return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.is_superuser or application.company.id == employee.company.id:
+            file.deleted = True
+            file.save()
+            return Response({'msg': 'file deleted'}, status=status.HTTP_204_NO_CONTENT)
+        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
     @action(methods=['get'], detail=True,)
     def read_file(self, request, pk=None):
         try:
@@ -604,21 +621,27 @@ class FileViewSet(viewsets.ModelViewSet):
             application = Application.objects.get(pk=file.application.id)
             employee = Employee.objects.get(user=request.user)
         except File.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         
         if not request.user.is_superuser and not application.company.id == employee.company.id:
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
         try: 
-            with open(file.url+'/'+file.name, 'r') as f:
+            # if os.path.isfile(file.url):
+            #     path = file.url
+            # else: 
+            path = os.path.join(file.url, file.name)
+            with open(path, 'r', errors='ignore') as f:
                 data = f.read() 
+            # import codecs
+            # with codecs.open(path, "r",encoding='utf-8', errors='ignore') as fdata:
+            #     data = fdata.read()
             return Response({'data': data})
         except OSError:
-            # print("OS error: {0}".format(err))
             return Response({'msg': 'Cannot read file from server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
         
     @action(methods=['get'], detail=True,)
@@ -628,22 +651,24 @@ class FileViewSet(viewsets.ModelViewSet):
             states = FileState.objects.filter(file=file)
             application = Application.objects.get(pk=file.application.id)
             employee = Employee.objects.get(user=request.user)
-            if not states:
-                return Response(MSG.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-            state = states[-1]
         except File.DoesNotExist:
             return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except FileState.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.FILESTATE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
             
         if not request.user.is_superuser and not application.company.id == employee.company.id:
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        if states:
+            state = states[-1]
+            path = os.path.join(state.path, file.name)
+        else:
+            path = os.path.join(file.url, file.name)
         try: 
-            with open(state.path+'/'+file.name, 'r') as f:
+            with open(path, 'r',  errors='ignore') as f:
                 data = f.read() 
         except OSError:
             return Response({'msg': 'Cannot read file from server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -660,37 +685,20 @@ class FileViewSet(viewsets.ModelViewSet):
                 return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
             states = FileState.objects.filter(file=file)
             if not states:
-                return Response(MSG.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-            state = states[-1]
+                return Response(Msg.FILESTATE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            state = states.latest('id')
         except File.DoesNotExist:
             return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except FileState.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.FILESTATE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
         serializer = FileStateSerializer(state)
         return Response(serializer.data)
-    def destroy(self, request, pk=None):
-        try: 
-            employee = Employee.objects.get(user=request.user)
-            file = File.objects.get(pk=pk)
-            application = Application.objects.get(pk=file.application.id)
-        except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
-        except File.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
-
-        if request.user.is_superuser or application.company.id == employee.company.id:
-            file.deleted = True
-            file.save()
-            return Response({'msg': 'file deleted'}, status=status.HTTP_204_NO_CONTENT)
-        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
-
+    
 class FileUploadView(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
@@ -702,26 +710,27 @@ class FileUploadView(APIView):
         # except File.DoesNotExist:
         #     return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
-        print(application.company.id, employee.company.id)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        # print(application.company.id, employee.company.id)
         if application.company.id != employee.company.id:
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
             
         up_file = request.FILES['files']
         print(up_file.size, up_file.content_type)
         if up_file.content_type != 'application/pdf':
-            return Response({'msg': 'File type not allowed'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'msg': 'File type not allowed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         if up_file.size > 100000000: #100M
-            return Response({'msg': 'File size over limit'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'msg': 'File size over limit'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         file_folder = uuid.uuid4().hex
-        path = '/Users/nebula-ai/Desktop/django/app_'+ app_id +'/'+file_folder         # MAC path
-        # path = 'C:/shares/django/app_'+app_id+'/'+file_folder  # Window path
+        # path = '/Users/nebula-ai/Desktop/django/app_{}/{}'.format(app_id,file_folder)         # MAC path
+        path = 'C:/shares/django/app_{}/{}'.format(app_id,file_folder)  # Window path
         url = path+'/' + up_file.name
         try:
             if not os.path.exists(path):
-                os.mkdir(path)
+                os.makedirs(path, exist_ok=True)
             with open(url, 'wb+') as destination:
                 for chunk in up_file.chunks():
                     destination.write(chunk)
@@ -731,7 +740,6 @@ class FileUploadView(APIView):
             
         file = File.objects.create(application=application, name=up_file.name, url=path, size=up_file.size)
         serializer = FileSerializer(file)
-        # if serializer.is_valid():
         return Response(serializer.data, status.HTTP_201_CREATED)
         # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -744,9 +752,9 @@ class FileStateViewSet(viewsets.ModelViewSet):
         except File.DoesNotExist:
             return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND) 
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
         if application.company.id == employee.company.id:
             queryset = FileState.objects.all().filter(file=file)
@@ -765,9 +773,9 @@ class FileStateViewSet(viewsets.ModelViewSet):
     #     except File.DoesNotExist:
     #         return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND) 
     #     except Application.DoesNotExist:
-    #         return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+    #         return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
     #     except Employee.DoesNotExist: 
-    #         return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+    #         return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         
     #     if request.user.is_superuser or application.company.id == employee.company.id:
     #         serializer = FileStateSerializer(file)
@@ -865,19 +873,19 @@ class FileStateViewSet(viewsets.ModelViewSet):
         except File.DoesNotExist:
             return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError:
-            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+            return Response(Msg.INTETRITY_ERROR, status.HTTP_406_NOT_ACCEPTABLE)
         # except Error:
         #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class NodeViewSet(viewsets.ModelViewSet):
-    def list(self, request):
-        if request.user.is_superuser or True:
-            queryset = Node.objects.all()
-            serializer = NodeSerializer(queryset, many=True)
-            return Response(serializer.data)
-        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+    # def list(self, request):
+    #     if request.user.is_superuser or True:
+    #         queryset = Node.objects.all()
+    #         serializer = NodeSerializer(queryset, many=True)
+    #         return Response(serializer.data)
+    #     return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
     def retrieve(self, request, pk=None):
         try:
@@ -885,11 +893,11 @@ class NodeViewSet(viewsets.ModelViewSet):
             application = Application.objects.get(pk=appinfo.application.id)
             employee = Employee.objects.get(user=request.user)
         except Node.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
         if request.user.is_superuser or application.company.id == employee.company.id:
             serializer = AppinfoSerializer(appinfo)
@@ -904,12 +912,11 @@ class NodeViewSet(viewsets.ModelViewSet):
             serializer = NodeSerializer(node)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError:
-            return Response({'msg': 'IntegrityError'}, status=status.HTTP_406_NOT_ACCEPTABLE)
+            return Response(Msg.INTETRITY_ERROR, status=status.HTTP_406_NOT_ACCEPTABLE)
     
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
     def update(self, request, pk=None):
         try:
@@ -917,11 +924,11 @@ class NodeViewSet(viewsets.ModelViewSet):
             node = Node.objects.get(pk=pk)
             application = Application.objects.get(pk=node.application.id)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Node.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         
         request.data['application'] = application.id
         serializer = NodeSerializer(node, data=request.data)
@@ -939,11 +946,11 @@ class NodeViewSet(viewsets.ModelViewSet):
             node = Node.objects.get(pk=pk)
             application = Application.objects.get(pk=node.application.id)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Node.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
         if request.user.is_superuser or application.company.id == employee.company.id:
             if node.original:
@@ -952,28 +959,21 @@ class NodeViewSet(viewsets.ModelViewSet):
             return Response({'msg': "node deleted"}, status=status.HTTP_204_NO_CONTENT)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
-class TagViewSet(viewsets.ModelViewSet):
-    def list(self, request):
-        if request.user.is_superuser or True:
-            queryset = Tag.objects.all()
-            serializer = TagSerializer(queryset, many=True)
-            return Response(serializer.data)
-        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
-
-    def retrieve(self, request, node_id=None):
+    @action(methods=['get'], detail=True,)
+    def node(self, request, pk=None):
         try:
-            node = Node.objects.get(pk=node_id)
+            node = Node.objects.get(pk=pk)
             application = Application.objects.get(pk=node.application.id)
             employee = Employee.objects.get(user=request.user)
             tags = Tag.objects.filter(node=node)
         except Node.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Tag.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.TAG_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
         if request.user.is_superuser or application.company.id == employee.company.id:
             if not tags: 
@@ -983,10 +983,11 @@ class TagViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
 
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
-    
-    def create(self, request, node_id=None):
+
+    @action(methods=['post'], detail=True,)
+    def nodes(self, request, pk=None):
         try: 
-            node = Node.objects.ger(pk=node_id)
+            node = Node.objects.get(pk=pk)
             application = Application.objects.get(pk=node.application.id) 
             employee = Employee.objects.get(user=request.user)
 
@@ -997,39 +998,47 @@ class TagViewSet(viewsets.ModelViewSet):
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
             
         except Node.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError:
-            return Response({'msg': 'IntegrityError'}, status.HTTP_406_NOT_ACCEPTABLE)
+            return Response(Msg.INTETRITY_ERROR, status.HTTP_406_NOT_ACCEPTABLE)
     
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-    def update(self, request, node_id=None, pk=None):
-        try:
-            node = Node.objects.ger(pk=node_id)
+    @action(methods=['put'], detail=True,)
+    def nodes(self, request, pk=None):
+        try: 
+            node = Node.objects.get(pk=pk)
             application = Application.objects.get(pk=node.application.id) 
             employee = Employee.objects.get(user=request.user)
-            tag = Tag.objects.get(pk=pk)
-        except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
-        except Tag.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+
+            if application.company.id == employee.company.id:
+                tags = Tag.objects.filter(node=node)
+                if not tags:
+                    return Response(Msg.TAG_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+                serializer = TagSerializer(tag, data=request.data)
+                if serializer.is_valid():
+                    serializer.save()
+                    return Response(serializer.data)
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+            
+        except Node.DoesNotExist:
+            return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # request.data['application'] = application.id
-        serializer = TagSerializer(tag, data=request.data)
-       
-        if request.user.is_superuser or application.company.id == employee.company.id:
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Employee.DoesNotExist: 
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except IntegrityError:
+            return Response(Msg.INTETRITY_ERROR, status.HTTP_406_NOT_ACCEPTABLE)
+    
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class TagViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, pk=None):
         try: 
@@ -1037,11 +1046,11 @@ class TagViewSet(viewsets.ModelViewSet):
             tag = Tag.objects.get(pk=pk)
             application = Application.objects.get(pk=tag.application.id)
         except Employee.DoesNotExist:
-            return Response({'msg': 'Employee Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Tag.DoesNotExist:
-            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.TAG_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response({'msg': 'Application Not Found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
         if request.user.is_superuser or application.company.id == employee.company.id:
             tag.delete()

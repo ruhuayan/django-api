@@ -34,7 +34,7 @@ router.register(r'appinfos', AppinfoViewSet, base_name='appinfo')
 router.register(r'files', FileViewSet, base_name='file')
 router.register(r'files/(?P<file_id>\d+)/states', FileStateViewSet, base_name='fileState')
 router.register(r'nodes', NodeViewSet, base_name='node')
-router.register(r'tags', TagViewSet, base_name='tag')
+router.register(r'tags', TagViewSet, base_name='tag')   #only delete API
 
 urlpatterns = [
     path('admin/', admin.site.urls),
