@@ -21,6 +21,7 @@ from ectd.manage import views
 from ectd.applications.views import *
 from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token
 
+from ectd.applications.models import *
 router = routers.DefaultRouter()
 # router.register(r'users', views.UserViewSet)
 router.register(r'groups', views.GroupViewSet)
@@ -36,6 +37,10 @@ router.register(r'files/(?P<file_id>\d+)/states', FileStateViewSet, base_name='f
 router.register(r'nodes', NodeViewSet, base_name='node')
 router.register(r'tags', TagViewSet, base_name='tag')   #only delete API
 
+admin.autodiscover()
+admin.site.register(Application)
+admin.site.register(Company)
+admin.site.register(Employee)
 urlpatterns = [
     path('admin/', admin.site.urls),
     url(r'^', include(router.urls)),

@@ -5,21 +5,21 @@ from reportlab.graphics.shapes import Rect
 from reportlab.lib.colors import PCMYKColor, PCMYKColorSep, Color, black, blue, red
 import io
 
-# packet = io.BytesIO()
-# blue50transparent = Color( 0, 0, 255, alpha=0.5)
-# # create a new PDF with Reportlab
-# can = canvas.Canvas(packet, pagesize=letter)
-# can.drawString(10, 100, "Hello world")
+packet = io.BytesIO()
+blue50transparent = Color( 0, 0, 255, alpha=0.5)
+# create a new PDF with Reportlab
+can = canvas.Canvas(packet, pagesize=letter)
+can.drawString(10, 100, "Hello world")
 
-# can.setFillColor(blue50transparent)
-# can.rect(300,75,100,100, fill=True, stroke=False)
+can.setFillColor(blue50transparent)
+can.rect(300,75,100,100, fill=True, stroke=False)
 
-# can.save()
+can.save()
 
-# #move to the beginning of the StringIO buffer
-# packet.seek(0)
-# new_pdf = PdfFileReader(packet)
-# read your existing PDF
+#move to the beginning of the StringIO buffer
+packet.seek(0)
+new_pdf = PdfFileReader(packet)
+#read your existing PDF
 existing_pdf = PdfFileReader(open("ectd/test/test.pdf", "rb"))
 output = PdfFileWriter()
 # add the "watermark" (which is the new pdf) on the existing page
