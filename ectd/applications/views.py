@@ -170,7 +170,7 @@ class ApplicationViewSet(viewsets.ViewSet):
             with transaction.atomic():
                 application = Application.objects.create(company=company, template=template, **request.data)
                 for n in nodes:
-                    n['original'] = True;
+                    n['original'] = True
                     node = Node.objects.create(application=application, **n)
                     #need to create folders
             serializer = ApplicationSerializer(application) 
