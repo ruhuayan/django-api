@@ -2,6 +2,7 @@ class Msg:
     NOT_AUTH = {'msg': 'NON_AUTHORITATIVE_INFORMATION'}
     NOT_FOUND = {'msg': 'NON FOUND'}
     FILE_NOT_FOUND={'msg': 'File Not Found'}
+    TEMPLATE_NOT_FOUND={'msg': 'Template Not Found'}
     FILESTATE_NOT_FOUND={'msg': 'File State Not Found'}
     APPLICATION_NOT_FOUND = {'msg': 'Application Not Found'}
     COMPANY_NOT_FOUND = {'msg': 'Company Not Found'}

@@ -13,7 +13,7 @@ from rest_framework.decorators import action
 
 from django.db import IntegrityError
 from django.db import transaction
-
+from django.conf import settings
 import os
 import uuid
 import json
@@ -163,14 +163,18 @@ class ApplicationViewSet(viewsets.ViewSet):
             
             if not company.activated:
                 print('company not activated')
-            # add nodes from template
+           
             nodes = json.loads(template.content)
             if not len(nodes): 
                 raise ValueError('no nodes')
             with transaction.atomic():
                 application = Application.objects.create(company=company, template=template, **request.data)
+                # create app folder 
+                APP_PATH = '/home/ectd/{}/app_{}/{}'.format(company.name, application_id, application.number)
+                os.makedirs(APP_PATH, exist_ok=True)
+
                 for n in nodes:
-                    n['original'] = True
+                    n['original'] = True;
                     node = Node.objects.create(application=application, **n)
                     #need to create folders
             serializer = ApplicationSerializer(application) 
@@ -725,9 +729,10 @@ class FileUploadView(APIView):
             return Response({'msg': 'File size over limit'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         file_folder = uuid.uuid4().hex
-        # path = '/Users/nebula-ai/Desktop/django/app_{}/{}'.format(app_id,file_folder)         # MAC path
-        path = 'C:/shares/django/app_{}/{}'.format(app_id,file_folder)  # Window path
-        url = path+'/' + up_file.name
+        #path = '/Users/nebula-ai/Desktop/django/{}/app_{}/{}'.format(application.company.name, app_id, file_folder)         # MAC path
+        path = '/home/ectd/{}/app_{}/{}'.format(application.company.name, app_id,file_folder)                 # ubuntu
+        # path = 'C:/shares/django/app_{}/{}'.format(app_id,file_folder)  # Window path
+        url = os.path.join(path, up_file.name) #path+'/' + up_file.name
         try:
             if not os.path.exists(path):
                 os.makedirs(path, exist_ok=True)
@@ -806,7 +811,7 @@ class FileStateViewSet(viewsets.ModelViewSet):
             if not links and not texts:
                 return Response({'msg': 'Not actions found'}, status=status.HTTP_404_NOT_FOUND)
 
-            pdf = PdfFileReader(open(f.url+'/'+f.name, 'rb'))
+            pdf = PdfFileReader(open(os.path.join(f.url, f.name), 'rb'))
             writer = PdfFileWriter()
 
             for i in range(0, pdf.getNumPages()):
@@ -854,11 +859,11 @@ class FileStateViewSet(viewsets.ModelViewSet):
                 # writer.addHighlight(link['pageNum'], link['rect'])
                 writer.addURI(link['pagenum'], link['uri'], link['rect'])
 
-            output_path = f.url+'/states/'
+            output_path = os.path.join(f.url, 'states')
             try:
                 if not os.path.exists(output_path):
                     os.mkdir(output_path)
-                with open(output_path+'/'+f.name, 'wb+') as destination:
+                with open(os.path.join(output_path, f.name), 'wb+') as destination:
                     writer.write(destination)
             except OSError as err:
                 print("OS error: {0}".format(err))
@@ -910,6 +915,9 @@ class NodeViewSet(viewsets.ModelViewSet):
             application = Application.objects.get(pk=app_id) 
             node = Node.objects.create(application=application, **request.data)
             serializer = NodeSerializer(node)
+            #add folders if node type = file
+            if node.type == 'FILE':
+                print(node.parent) 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except Application.DoesNotExist:
             return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)

@@ -6,7 +6,8 @@ Enviroments:
 packages:
   django-adminrestrict
   django-rest-framework
-  django-rest-framework-jwt
+  djangorestframework-jwt
+  jango-cors-headers
   PyPDF2
   reportlab
   
