@@ -41,9 +41,11 @@ class Application(AuditModel): #ManagerModel
     template = models.ForeignKey(Template, on_delete=models.PROTECT)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='applications')
     description = models.CharField(max_length=50)
-    number = models.CharField(max_length=50, unique=True)
+    number = models.CharField(max_length=50)
     sequence = models.CharField(max_length=50)
     seqDescription = models.CharField(max_length=50)
+    class Meta:
+        unique_together = ('number', 'sequence',)
     
 class Employee(AuditModel):
     ROLE_CHOICES = (('ADMIN', 'ADMIN'), ('MGER', 'MANAGER'), ('BAS', 'BASIC'))
@@ -62,6 +64,9 @@ class Contact(AuditModel): #ManagerModel
     email = models.EmailField(max_length=50)
 
 class Appinfo(AuditModel):
+    APPTYPE_CHOICES = (('NDA', 'New Drug Application (NDA)'), ('ANDA', 'Abbreviated New Drug Application (ANDA)'), 
+                        ('BLA', 'Biologic License Application (BLA)'), ('IND', 'Investigational New Drug (IND)'), 
+                        ('DMF', 'Drug Master File (DMF)'), ('EUA', 'Emergency Use Authorization (EUA)'))
     application = models.OneToOneField(Application, on_delete=models.CASCADE, primary_key=True,)
     dunso = models.CharField(max_length=15)
     companyName = models.CharField(max_length=50)
@@ -89,7 +94,7 @@ class FileState(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 class Node(AuditModel):
-    TYPE_CHOICES = (('ROOT', 'ROOT'),('DEFAULT', 'DEFAULT'), ('FOLDER', 'FOLDER'), ('FILE', 'FILE'), ('TAG', 'TAG'))
+    TYPE_CHOICES = (('root', 'root'),('default', 'default'), ('folder', 'folder'), ('file', 'file'), ('tag', 'tag'))
     nid = models.AutoField(primary_key=True)
     application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='nodes')
     id = models.CharField(max_length=10)

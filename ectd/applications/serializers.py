@@ -39,8 +39,11 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
 class ApplicationSerializer(serializers.ModelSerializer):
     # template = TemplateSerializer(read_only=True)
-    template = serializers.SlugRelatedField(read_only=True, slug_field='name')
-    company = CompanySerializer(read_only=True)
+    template = serializers.SlugRelatedField(read_only=True, slug_field='id')
+    company = serializers.SlugRelatedField(read_only=True, slug_field='id')
+    # company =  serializers.ReadOnlyField(source='company.id')
+    # company =  serializers.PrimaryKeyRelatedField(read_only=True)
+    # company = CompanySerializer(read_only=True)
     class Meta:
         model = Application
         fields = '__all__'

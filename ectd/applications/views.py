@@ -165,17 +165,23 @@ class ApplicationViewSet(viewsets.ViewSet):
                 print('company not activated')
            
             nodes = json.loads(template.content)
+            # print(repr(nodes))
             if not len(nodes): 
                 raise ValueError('no nodes')
             with transaction.atomic():
                 application = Application.objects.create(company=company, template=template, **request.data)
                 # create app folder 
-                APP_PATH = '/home/ectd/{}/app_{}/{}'.format(company.name, application_id, application.number)
-                os.makedirs(APP_PATH, exist_ok=True)
+                # APP_PATH = '/home/ectd/{}/app_{}/{}'.format(company.name, application.id, application.number)
+                APP_PATH = 'C:\shares\django\{}\\app_{}\{}'.format(company.name, application.id, application.number)
 
+                os.makedirs(APP_PATH, exist_ok=True)
+                print(os.path.exists(APP_PATH))
                 for n in nodes:
+                    if(n['parent']=='#'):
+                        n['text'] = application.sequence
                     n['original'] = True;
                     node = Node.objects.create(application=application, **n)
+                    
                     #need to create folders
             serializer = ApplicationSerializer(application) 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
