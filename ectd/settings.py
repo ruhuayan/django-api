@@ -139,6 +139,9 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_HOST_USER = 'ectdapi@gmail.com'
 EMAIL_HOST_PASSWORD = 'password'
 EMAIL_PORT = 587
+
+#upload setting
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10240
 # Internationalization
 # https://docs.djangoproject.com/en/2.1/topics/i18n/
 

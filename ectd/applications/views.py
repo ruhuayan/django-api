@@ -10,7 +10,8 @@ from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.parsers import FileUploadParser, MultiPartParser, FormParser
 from rest_framework.decorators import action
-
+from django.utils.datastructures import MultiValueDictKeyError
+from django.utils import timezone
 from django.db import IntegrityError
 from django.db import transaction
 from django.conf import settings
@@ -94,6 +95,7 @@ class CompanyViewSet(viewsets.ViewSet):
             return Response(Msg.COMPANY_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         # company.delete()
         company.deleted = True
+        company.deleted_at = timezone.now()
         company.deleted_by = request.user
         return Response({'msg': "company deleted"}, status=status.HTTP_204_NO_CONTENT)
     
@@ -224,6 +226,7 @@ class ApplicationViewSet(viewsets.ViewSet):
             application = Application.objects.get(pk=pk)
             if  application.company.id == employee.company.id and employee.role=='ADMIN':
                 application.deleted = True
+                application.deleted_at = timezone.now()
                 application.deleted_by = request.user
                 return Response({'msg': "application deleted"}, status=status.HTTP_204_NO_CONTENT)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -255,7 +258,7 @@ class ApplicationViewSet(viewsets.ViewSet):
             employee = Employee.objects.get(user=request.user)
             application = Application.objects.get(pk=pk)
             if request.user.is_superuser or application.company.id == employee.company.id:
-                queryset = File.objects.filter(application=application)
+                queryset = File.objects.filter(application=application, deleted = False)
                 serializer = FileSerializer(queryset, many=True)
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -618,7 +621,15 @@ class FileViewSet(viewsets.ModelViewSet):
             return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
         if request.user.is_superuser or application.company.id == employee.company.id:
+            try: 
+                file_path = os.path.join(file.url, file.name)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+            except OSError as err:
+                return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
             file.deleted = True
+            file.deleted_at = timezone.now()
+            file.deleted_by = request.user
             file.save()
             return Response({'msg': 'file deleted'}, status=status.HTTP_204_NO_CONTENT)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -716,8 +727,7 @@ class FileUploadView(APIView):
         try:
             application = Application.objects.get(pk=app_id)
             employee = Employee.objects.get(user=request.user)
-        # except File.DoesNotExist:
-        #     return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            # print(repr(request.FILES))
         except Application.DoesNotExist:
             return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
@@ -726,26 +736,29 @@ class FileUploadView(APIView):
         if application.company.id != employee.company.id:
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
             
-        up_file = request.FILES['files']
-        print(up_file.size, up_file.content_type)
-        if up_file.content_type != 'application/pdf':
-            return Response({'msg': 'File type not allowed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        if up_file.size > 100000000: #100M
-            return Response({'msg': 'File size over limit'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        file_folder = uuid.uuid4().hex
-        #path = '/Users/nebula-ai/Desktop/django/{}/app_{}/{}'.format(application.company.name, app_id, file_folder)         # MAC path
-        path = '/home/ectd/{}/app_{}/{}'.format(application.company.name, app_id,file_folder)                 # ubuntu
-        # path = 'C:/shares/django/app_{}/{}'.format(app_id,file_folder)  # Window path
-        url = os.path.join(path, up_file.name) #path+'/' + up_file.name
         try:
+            up_file = request.FILES['file']
+            print(up_file.size, up_file.content_type)
+            if up_file.content_type != 'application/pdf':
+                return Response({'msg': 'File type not allowed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            if up_file.size > 100000000: #100M
+                return Response({'msg': 'File size over limit'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            file_folder = uuid.uuid4().hex
+            #path = '/Users/nebula-ai/Desktop/django/{}/app_{}/{}'.format(application.company.name, app_id, file_folder)         # MAC path
+            #path = '/home/ectd/{}/app_{}/{}'.format(application.company.name, app_id,file_folder)                 # ubuntu
+            path = 'C:/shares/django/app_{}/{}'.format(app_id,file_folder)  # Window path
+            url = os.path.join(path, up_file.name) #path+'/' + up_file.name
+
             if not os.path.exists(path):
                 os.makedirs(path, exist_ok=True)
             with open(url, 'wb+') as destination:
                 for chunk in up_file.chunks():
                     destination.write(chunk)
+        except MultiValueDictKeyError: 
+            return Response({'msg': 'Empty file'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
         except OSError as err:
-            print("OS error: {0}".format(err))
+            # print("OS error: {0}".format(err))
             return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
             
         file = File.objects.create(application=application, name=up_file.name, url=path, size=up_file.size)
