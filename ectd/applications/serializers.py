@@ -77,6 +77,7 @@ class NodeSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class TagSerializer(serializers.ModelSerializer):
+    node = NodeSerializer(read_only=True)
     class Meta:
         model = Tag
         fields = '__all__'

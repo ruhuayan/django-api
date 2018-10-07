@@ -58,10 +58,16 @@ class Employee(AuditModel):
    
 class Contact(AuditModel): #ManagerModel
     application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='contacts')
+    PHONE_CHOICES = (('BUS', 'Business Telephone Number'), ('FAX','Fax Telephone Number'), ('MOB', 'Mobile Telephone Number'))
     CONTACTTYPE_CHOICES = (('REG', 'REGULATORY'),('TEC', 'TECHNICAL'),('AGT', 'AGENT'),('PRO', 'PROMOTIONAL'))
-    contactType = models.CharField(max_length=3, choices=CONTACTTYPE_CHOICES, unique=True)
+    contactType = models.CharField(max_length=3, choices=CONTACTTYPE_CHOICES)
     phone = models.CharField(max_length=15)
+    telephoneType = models.CharField(max_length=3, choices=PHONE_CHOICES, default='BUS')
     email = models.EmailField(max_length=50)
+    contactName = models.CharField(max_length =50)
+
+    class Meta:
+        unique_together = ('application', 'contactType')
 
 class Appinfo(AuditModel):
     APPTYPE_CHOICES = (('NDA', 'New Drug Application (NDA)'), ('ANDA', 'Abbreviated New Drug Application (ANDA)'), 
@@ -76,9 +82,9 @@ class Appinfo(AuditModel):
     subType = models.CharField(max_length=50)
     effType = models.CharField(max_length=50)
     subSubType = models.CharField(max_length=50)
-    subNumber = models.CharField(max_length=15)
-    refNumber = models.CharField(max_length=15)
-    refType = models.CharField(max_length=50)
+    # subNumber = models.CharField(max_length=15, null=True)
+    # refNumber = models.CharField(max_length=15, null=True)
+    # refType = models.CharField(max_length=50, null=True)
 
 class File(AuditModel):
     application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='files')
@@ -106,24 +112,24 @@ class Node(AuditModel):
     original = models.BooleanField(default=False)
 
     class Meta:
-        unique_together = ('application', 'nid',)
+        unique_together = ('application', 'id',)
 
 class Tag(AuditModel):
     node = models.OneToOneField(Node, on_delete=models.CASCADE, primary_key=True,)
     sNumber = models.CharField(max_length=15)
     title = models.CharField(max_length=50)
     eCode = models.CharField(max_length=50)
-    studyNumber = models.CharField(max_length=50)
-    stfType = models.CharField(max_length=50)
-    species = models.CharField(max_length=50)
-    root = models.CharField(max_length=50)
-    duration = models.CharField(max_length=50)
-    control = models.CharField(max_length=50)
-    tag = models.CharField(max_length=50)
-    manufacturer = models.CharField(max_length=50)
-    substance = models.CharField(max_length=50)
-    productName = models.CharField(max_length=50)
-    dosage = models.CharField(max_length=50)
+    studyNumber = models.CharField(max_length=50, blank=True, null=True)
+    stfType = models.CharField(max_length=50, blank=True, null=True)
+    species = models.CharField(max_length=50, blank=True, null=True)
+    root = models.CharField(max_length=50, blank=True, null=True)
+    duration = models.CharField(max_length=50, blank=True, null=True)
+    control = models.CharField(max_length=50, blank=True, null=True)
+    tag = models.CharField(max_length=50, blank=True, null=True)
+    manufacturer = models.CharField(max_length=50, blank=True, null=True)
+    substance = models.CharField(max_length=50, blank=True, null=True)
+    productName = models.CharField(max_length=50, blank=True, null=True)
+    dosage = models.CharField(max_length=50, blank=True, null=True)
 
 # rm -f db.sqlite3
 # rm -r applications/migrations
