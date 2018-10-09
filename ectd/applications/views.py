@@ -89,14 +89,15 @@ class CompanyViewSet(viewsets.ViewSet):
     def destroy(self, request, pk=None):
         if  not request.user.is_superuser:
            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION) 
-        try:
-            company = Company.objects.get(pk=pk)
-        except Company.DoesNotExist:
-            return Response(Msg.COMPANY_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        # try:
+        #     company = Company.objects.get(pk=pk)
+        # except Company.DoesNotExist:
+        #     return Response(Msg.COMPANY_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         # company.delete()
-        company.deleted = True
-        company.deleted_at = timezone.now()
-        company.deleted_by = request.user
+        # company.deleted = True
+        # company.deleted_at = timezone.now()
+        # company.deleted_by = request.user
+        Company.objects.filter(pk=pk).update(deleted=True, deleted_at=timezone.now(), deleted_by=request.user)
         return Response({'msg': "company deleted"}, status=status.HTTP_204_NO_CONTENT)
     
     #API: /companies/2/applications
@@ -135,7 +136,7 @@ class ApplicationViewSet(viewsets.ViewSet):
 
     def list(self, request):
         if request.user.is_superuser or True:
-            queryset = Application.objects.all().filter(deleted=False)
+            queryset = Application.objects.filter(deleted=False)
             serializer = ApplicationSerializer(queryset, many=True)
             return Response(serializer.data)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -225,9 +226,10 @@ class ApplicationViewSet(viewsets.ViewSet):
             employee = Employee.objects.get(user=request.user)
             application = Application.objects.get(pk=pk)
             if  application.company.id == employee.company.id and employee.role=='ADMIN':
-                application.deleted = True
-                application.deleted_at = timezone.now()
-                application.deleted_by = request.user
+                # application.deleted = True
+                # application.deleted_at = timezone.now()
+                # application.deleted_by = request.user
+                Application.objects.filter(pk=pk).update(deleted=True, deleted_at=timezone.now(), deleted_by=request.user)
                 return Response({'msg': "application deleted"}, status=status.HTTP_204_NO_CONTENT)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         except Employee.DoesNotExist:
@@ -664,6 +666,7 @@ class FileViewSet(viewsets.ModelViewSet):
                     os.remove(file_path)
             except OSError as err:
                 return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # File.objects.filter(pk=pk).update(deleted=True,deleted_at=timezone.now(), deleted_by=request.user)
             file.deleted = True
             file.deleted_at = timezone.now()
             file.deleted_by = request.user
@@ -817,7 +820,7 @@ class FileStateViewSet(viewsets.ModelViewSet):
             return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
         if application.company.id == employee.company.id:
-            queryset = FileState.objects.all().filter(file=file)
+            queryset = FileState.objects.filter(file=file)
             serializer = FileStateSerializer(queryset, many=True)
             return Response(serializer.data)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -1022,35 +1025,6 @@ class NodeViewSet(viewsets.ModelViewSet):
             return Response({'msg': "node deleted"}, status=status.HTTP_204_NO_CONTENT)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
-    
-        try: 
-            node = Node.objects.get(pk=pk)
-            application = Application.objects.get(pk=node.application.id) 
-            employee = Employee.objects.get(user=request.user)
-
-            if application.company.id == employee.company.id:
-                tags = Tag.objects.filter(node=node)
-                if not tags:
-                    return Response(Msg.TAG_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-                serializer = TagSerializer(tag, data=request.data)
-                if serializer.is_valid():
-                    serializer.save()
-                    return Response(serializer.data)
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            
-            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
-            
-        except Node.DoesNotExist:
-            return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        except Application.DoesNotExist:
-            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        except Employee.DoesNotExist: 
-            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        except IntegrityError:
-            return Response(Msg.INTETRITY_ERROR, status.HTTP_406_NOT_ACCEPTABLE)
-    
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 class NodeTagViewSet(viewsets.ModelViewSet):
     
     def retrieve(self, request, app_id=None, node_id=None):
@@ -1058,23 +1032,25 @@ class NodeTagViewSet(viewsets.ModelViewSet):
             application = Application.objects.get(pk=app_id)
             employee = Employee.objects.get(user=request.user)
 
-            nodes = Node.objects.filter(application=application, id=node_id)
-            if nodes:
-                node=nodes[0]
-            else:
-                return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-            tags = Tag.objects.filter(node=node)
+            node = Node.objects.get(application=application, id=node_id)
+            # if nodes:
+            #     node=nodes[0]
+            # else:
+            #     return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+            tag = Tag.objects.get(node=node)
         except Tag.DoesNotExist:
             return Response(Msg.TAG_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Node.DoesNotExist:
+            return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)    
         except Application.DoesNotExist:
             return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
             return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
         if request.user.is_superuser or application.company.id == employee.company.id:
-            if not tags: 
-                return Response(Msg.TAG_NOT_FOUND, status=status.HTTP_404_NOT_FOUND )
-            tag = tags[0]
+            # if not tags: 
+            #     return Response(Msg.TAG_NOT_FOUND, status=status.HTTP_404_NOT_FOUND )
+            # tag = tags[0]
             serializer = TagSerializer(tag)
             return Response(serializer.data)
 
@@ -1086,18 +1062,18 @@ class NodeTagViewSet(viewsets.ModelViewSet):
             employee = Employee.objects.get(user=request.user)
 
             if application.company.id == employee.company.id:
-                nodes = Node.objects.filter(application=application, id=node_id)
-                if nodes:
-                    node = nodes[0]
-                else: 
-                    return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+                node = Node.objects.get(application=application, id=node_id)
+                # if nodes:
+                #     node = nodes[0]
+                # else: 
+                #     return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
                 tag = Tag.objects.create(node=node, **request.data)
                 serializer = TagSerializer(tag)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
             
-        # except Node.DoesNotExist:
-        #     return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Node.DoesNotExist:
+            return Response(Msg.NODE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
             return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
