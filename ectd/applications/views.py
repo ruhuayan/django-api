@@ -303,6 +303,42 @@ class ApplicationViewSet(viewsets.ViewSet):
         except Application.DoesNotExist:
             return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
+    #API: /applications/5/batch_nodes
+    @action(methods=['post'], detail=True,)
+    def batch_nodes(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            application = Application.objects.get(pk=pk)
+            if request.user.is_superuser or application.company.id == employee.company.id:
+                nodes = json.loads(request.data['nodes'])
+                if not len(nodes): 
+                    raise ValueError('no nodes')
+                query_set=[]
+                with transaction.atomic():
+                    for n in nodes:
+                        print(repr(n))
+                        node, created = Node.objects.update_or_create(application=application, id=n['id'], defaults=n)
+                        #try:
+                        #   node = Node.objects.get(application=application, id=n['id'])
+                        #   for key, value in n.items():
+                        #       setattr(obj, key, value)
+                        #   node.save()
+                        # except Node.DoesNotExist:
+                        #     node = Node.objects.create(application=application, **n)
+                        query_set.append(node)
+                serializer = NodeSerializer(query_set, many=True)
+                return Response(serializer.data)
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        except Employee.DoesNotExist:
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except ValueError:
+            return Response({'msg': 'no nodes in request'}, status=status.HTTP_204_NO_CONTENT)
+        except Exception as error:
+            print(repr(error))
+            return Response({'msg': 'error batch creating nodes'}, status=status.HTTP_204_NO_CONTENT)
+
     #API: /applications/5/tags
     @action(methods=['get'], detail=True,)
     def tags(self, request, pk=None):
@@ -561,6 +597,7 @@ class AppinfoViewSet(viewsets.ModelViewSet):
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
 class FileViewSet(viewsets.ModelViewSet):
+
     def list(self, request):
         if request.user.is_superuser:
             queryset = File.objects.all().filter(deleted=False)
@@ -660,7 +697,7 @@ class FileViewSet(viewsets.ModelViewSet):
             # import codecs
             # with codecs.open(path, "r",encoding='utf-8', errors='ignore') as fdata:
             #     data = fdata.read()
-            return Response({'data': data})
+            return Response(data)
         except OSError:
             return Response({'msg': 'Cannot read file from server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
         
@@ -705,7 +742,7 @@ class FileViewSet(viewsets.ModelViewSet):
                 return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
             states = FileState.objects.filter(file=file)
             if not states:
-                return Response(Msg.FILESTATE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+                return Response(Msg.FILESTATE_NOT_FOUND)
             state = states.latest('id')
         except File.DoesNotExist:
             return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
@@ -934,7 +971,7 @@ class NodeViewSet(viewsets.ModelViewSet):
             node = Node.objects.create(application=application, **request.data)
             serializer = NodeSerializer(node)
             #add folders if node type = file
-            if node.type == 'FILE':
+            if node.type == 'file':
                 print(node.parent) 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except Application.DoesNotExist:

@@ -106,7 +106,7 @@ class Node(AuditModel):
     id = models.CharField(max_length=10)
     name = models.CharField(max_length=100)
     text = models.CharField(max_length=100)
-    type = models.CharField(max_length=15, choices=TYPE_CHOICES, default='DEFAULT')
+    type = models.CharField(max_length=15, choices=TYPE_CHOICES, default='default')
     sNumber = models.CharField(max_length=15)
     parent = models.CharField(max_length=15)
     original = models.BooleanField(default=False)
