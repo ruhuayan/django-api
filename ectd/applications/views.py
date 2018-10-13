@@ -15,18 +15,20 @@ from django.utils import timezone
 from django.db import IntegrityError
 from django.db import transaction
 from django.conf import settings
+from django.views.generic import View
+from django.http import HttpResponse
 import os
 import uuid
 import json
 from ectd.PyPDF2 import PdfFileWriter, PdfFileReader
 
 from ectd.PyPDF2.canvas import drawBackground, drasString
+from ectd.PyPDF2.utils import b_
 import io
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.graphics.shapes import Rect
 from reportlab.lib.colors import Color
-# from ectd.PyPDF2.PyPDF2Highlight import createHighlight, addHighlightToPage
 # from rest_framework import mixins
 # from rest_framework import generics
 
@@ -691,16 +693,16 @@ class FileViewSet(viewsets.ModelViewSet):
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
         try: 
-            # if os.path.isfile(file.url):
-            #     path = file.url
-            # else: 
             path = os.path.join(file.url, file.name)
-            with open(path, 'r', errors='ignore') as f:
-                data = f.read() 
-            # import codecs
-            # with codecs.open(path, "r",encoding='utf-8', errors='ignore') as fdata:
-            #     data = fdata.read()
-            return Response(data)
+            fileobj = open(path, 'rb')
+            buffer = io.BytesIO(b_(fileobj.read()))
+            fileobj.close()
+            return HttpResponse(buffer.getvalue(), content_type='application/pdf')
+            # with open(path, 'rb') as f:
+            #     data = f.read() 
+            # print(data)
+            # data = '%s'%data
+            # return Response(data)
         except OSError:
             return Response({'msg': 'Cannot read file from server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
         
@@ -708,7 +710,7 @@ class FileViewSet(viewsets.ModelViewSet):
     def last_file(self, request, pk=None):
         try:
             file = File.objects.get(pk=pk)
-            states = FileState.objects.filter(file=file)
+            state = FileState.objects.filter(file=file).last()
             application = Application.objects.get(pk=file.application.id)
             employee = Employee.objects.get(user=request.user)
         except File.DoesNotExist:
@@ -722,17 +724,21 @@ class FileViewSet(viewsets.ModelViewSet):
             
         if not request.user.is_superuser and not application.company.id == employee.company.id:
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
-        if states:
-            state = states[-1]
+        if state:
+            # state = states[-1]
             path = os.path.join(state.path, file.name)
         else:
             path = os.path.join(file.url, file.name)
         try: 
-            with open(path, 'r',  errors='ignore') as f:
-                data = f.read() 
+            # with open(path, 'r',  errors='ignore') as f:
+            #     data = f.read() 
+            fileobj = open(path, 'rb')
+            buffer = io.BytesIO(b_(fileobj.read()))
+            fileobj.close()
+            return HttpResponse(buffer.getvalue(), content_type='application/pdf')
         except OSError:
             return Response({'msg': 'Cannot read file from server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response({'data': data})
+        # return Response({'data': data})
 
     @action(methods=['get'], detail=True,)
     def last_state(self, request, pk=None):
@@ -1139,4 +1145,17 @@ class TagViewSet(viewsets.ModelViewSet):
             tag.delete()
             return Response({'msg': "tag deleted"}, status=status.HTTP_204_NO_CONTENT)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
-    
+
+# class Pdf(View):
+#     def get(self, request, fid=None):
+#         try: 
+#             file = File.objects.get(pk=fid)
+#             path = os.path.join(file.url, file.name)
+#             fileobj = open(path, 'rb')
+#             buffer = io.BytesIO(b_(fileobj.read()))
+#             fileobj.close()
+#             return HttpResponse(buffer.getvalue(), content_type='application/pdf')
+#         except OSError as e:
+#             print(e)
+
+     

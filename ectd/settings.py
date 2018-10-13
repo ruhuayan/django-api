@@ -28,7 +28,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['127.0.0.0', 'localhost']
 
-
+ADMINS = [('rich', 'ectdapi@gmail.com'),]
 # Application definition
 
 INSTALLED_APPS = [
@@ -129,6 +129,7 @@ REST_FRAMEWORK = {
         # 'rest_framework.authentication.SessionAuthentication',
         # 'rest_framework.authentication.BasicAuthentication',
     ),
+    'UNICODE_JSON': False
 }
 
 JWT_AUTH = {
