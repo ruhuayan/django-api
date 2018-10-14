@@ -882,14 +882,20 @@ class FileStateViewSet(viewsets.ModelViewSet):
                 page = pdf.getPage(i)
                 if links:
                     for link in links:
-                        if i==link['pagenum']:
+                        if i==int(link['page'])-1:
                             # writer.addURI(i, link['uri'], link['rect'])
                             page_w = page.mediaBox.getWidth()
                             page_h = page.mediaBox.getHeight()
                             print(page_w, page_h)
-                            x1, y1, x2, y2 = link['rect']
-                            w = x2 - x1
-                            h = y2 - y1
+                            x1 = float(link['rect']['left'])
+                            y1 = float(link['rect']['top'])
+                            w = float(link['rect']['width'])
+                            h = float(link['rect']['height'])
+                            x2 = w + x1
+                            y2 = h + y1
+                            # x1, y1, x2, y2 = link['rect']
+                            # w = x2 - x1
+                            # h = y2 - y1
                             y1 = page_h - y1
                             y2 = page_h - y2
                             link['rect'] = [x1, y1, x2, y2]
@@ -905,7 +911,7 @@ class FileStateViewSet(viewsets.ModelViewSet):
                             page.mergePage(new_pdf.getPage(0))
                 if texts:
                     for text in texts:
-                        if i==text['pagenum']: 
+                        if i==int(text['page'])-1: 
                             page_w = page.mediaBox.getWidth()
                             page_h = page.mediaBox.getHeight()
                             packet = io.BytesIO()
@@ -919,9 +925,8 @@ class FileStateViewSet(viewsets.ModelViewSet):
                 writer.addPage(page)
                 
             for link in links:
-                # print(repr(link['rect']))
-                # writer.addHighlight(link['pageNum'], link['rect'])
-                writer.addURI(link['pagenum'], link['uri'], link['rect'])
+                print(repr(link['rect']))
+                writer.addURI(int(link['page'])-1, link['uri'], link['rect'])
 
             output_path = os.path.join(f.url, 'states')
             try:
