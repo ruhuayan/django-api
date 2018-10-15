@@ -43,7 +43,7 @@ class Application(AuditModel): #ManagerModel
     description = models.CharField(max_length=50)
     number = models.CharField(max_length=50)
     sequence = models.CharField(max_length=50)
-    seqDescription = models.CharField(max_length=50)
+    seqDescription = models.CharField(max_length=50, blank=True, null=True )
     class Meta:
         unique_together = ('number', 'sequence',)
     
@@ -76,11 +76,11 @@ class Appinfo(AuditModel):
     application = models.OneToOneField(Application, on_delete=models.CASCADE, primary_key=True,)
     dunso = models.CharField(max_length=15)
     companyName = models.CharField(max_length=50)
-    description = models.CharField(max_length=50)
+    description = models.CharField(max_length=50, blank=True, null=True)
     appType = models.CharField(max_length=50)
     subId = models.CharField(max_length=15)
     subType = models.CharField(max_length=50)
-    effType = models.CharField(max_length=50)
+    effType = models.CharField(max_length=50, blank=True, null=True)
     subSubType = models.CharField(max_length=50)
     # subNumber = models.CharField(max_length=15, null=True)
     # refNumber = models.CharField(max_length=15, null=True)
