@@ -15,7 +15,7 @@ import datetime
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FILE_DIR = '/home/etcd'
+# FILE_DIR = '/home/etcd'
 STATIC_ROOT = os.path.join(BASE_DIR, "static/")
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.1/howto/deployment/checklist/
@@ -78,10 +78,10 @@ WSGI_APPLICATION = 'ectd.wsgi.application'
 CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ORIGIN_WHITELIST = (
-    'localhost:3000',
+    'localhost:*',
 )
 CORS_ORIGIN_REGEX_WHITELIST = (
-    'localhost:3000',
+    'localhost:*',
 )
 
 

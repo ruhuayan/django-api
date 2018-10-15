@@ -176,8 +176,8 @@ class ApplicationViewSet(viewsets.ViewSet):
             with transaction.atomic():
                 application = Application.objects.create(company=company, template=template, **request.data)
                 # create app folder 
-                # APP_PATH = '/home/ectd/{}/app_{}/{}'.format(company.name, application.id, application.number)
-                APP_PATH = 'C:\shares\django\{}\\app_{}\{}'.format(company.name, application.id, application.number)
+                APP_PATH = '/home/ectd/{}/app_{}/{}'.format(company.name, application.id, application.number)
+                # APP_PATH = 'C:\shares\django\{}\\app_{}\{}'.format(company.name, application.id, application.number)
 
                 os.makedirs(APP_PATH, exist_ok=True)
                 print(os.path.exists(APP_PATH))
@@ -792,8 +792,8 @@ class FileUploadView(APIView):
 
             file_folder = uuid.uuid4().hex
             #path = '/Users/nebula-ai/Desktop/django/{}/app_{}/{}'.format(application.company.name, app_id, file_folder)         # MAC path
-            #path = '/home/ectd/{}/app_{}/{}'.format(application.company.name, app_id,file_folder)                 # ubuntu
-            path = 'C:/shares/django/app_{}/{}'.format(app_id,file_folder)  # Window path
+            path = '/home/ectd/{}/app_{}/{}'.format(application.company.name, app_id,file_folder)                 # ubuntu
+            # path = 'C:/shares/django/app_{}/{}'.format(app_id,file_folder)  # Window path
             url = os.path.join(path, up_file.name) #path+'/' + up_file.name
 
             if not os.path.exists(path):
