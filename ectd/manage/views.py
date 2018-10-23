@@ -9,6 +9,7 @@ from rest_framework.permissions import BasePermission, IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
 from ectd.extra.msg import Msg
 import re
+from django.db import IntegrityError
 from django.core.mail import EmailMessage
 from django.contrib.sites.shortcuts import get_current_site
 from django.utils.encoding import force_bytes, force_text
@@ -114,13 +115,19 @@ class AccountList(APIView):
             return Response({'msg': 'Email invalid'}, status=status.HTTP_400_BAD_REQUEST)
         request.data['is_active'] = False
         request.data['email']=request.data['username']
-        user = User.objects.create(**request.data)
-        self.send_email(user, request)
-        return Response({'msg': 'Account created'}, status=status.HTTP_201_CREATED)
+        try:
+            user = User.objects.create_user(**request.data)
+            self.send_email(user, request)
+            return Response({'msg': 'Account created'}, status=status.HTTP_201_CREATED)
+        except(ValueError, User.DoesNotExist):
+            return Response({'msg': 'error'}, status=status.HTTP_400_BAD_REQUEST)
+        except IntegrityError:
+            return Response({'msg': 'Email alread exist'}, status=status.HTTP_400_BAD_REQUEST)
         # serializer = AccountSerializer(data=request.data)
         # if serializer.is_valid():
         #     user = User(**serializer.validated_data)
         #     serializer.save()
+        #     print(user.id)
         #     self.send_email(user, request)
         #     return Response({'msg': 'Account created'}, status=status.HTTP_201_CREATED)
         # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

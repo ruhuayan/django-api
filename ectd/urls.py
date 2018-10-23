@@ -24,7 +24,7 @@ from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token
 from ectd.applications.models import *
 router = routers.DefaultRouter()
 router.register(r'groups', views.GroupViewSet)
-router.register(r'templates', TemplateViewSet)
+router.register(r'templates', TemplateViewSet, base_name='template')
 router.register(r'companies', CompanyViewSet, base_name='company')
 router.register(r'applications', ApplicationViewSet, base_name='application')
 router.register(r'users', views.UserViewSet, base_name='user')

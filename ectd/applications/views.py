@@ -33,9 +33,56 @@ from reportlab.lib.colors import Color
 # from rest_framework import generics
 
 class TemplateViewSet(viewsets.ModelViewSet):
-    permission_classes = (IsAdminUser,)
-    queryset = Template.objects.all()
-    serializer_class = TemplateSerializer
+    # permission_classes = (IsAdminUser,)
+    # queryset = Template.objects.all()
+    # serializer_class = TemplateSerializer
+    def list(self, request):
+        queryset = Template.objects.all()
+        serializer = TemplateSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, pk=None):
+        try:
+            template = Template.objects.get(pk=pk)
+        except Template.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        serializer = TemplateSerializer(template)
+        return Response(serializer.data)
+    
+    def create(self, request):
+        if not request.user.is_superuser:
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        try: 
+            template = Template.objects.create(**request.data)
+            serializer = TemplateSerializer(template)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except IntegrityError:
+            return Response(Msg.INTETRITY_ERROR, status=status.HTTP_406_NOT_ACCEPTABLE)
+
+    def update(self, request, pk=None):
+        if not request.user.is_superuser:
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        try:
+            template = Template.objects.get(pk=pk)
+        except Template.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        serializer = TemplateSerializer(template, data=request.data)
+       
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def destroy(self, request, pk=None):
+        if not request.user.is_superuser:
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        try: 
+            template = Template.objects.get(pk=pk)
+        except Template.DoesNotExist:
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        
+        template.delete()
+        return Response({'msg': "employee deleted"}, status=status.HTTP_204_NO_CONTENT)
 
 class CompanyViewSet(viewsets.ViewSet):
 
