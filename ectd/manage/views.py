@@ -1,5 +1,4 @@
 #from django.shortcuts import render
-
 from django.contrib.auth.models import User, Group
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
@@ -9,12 +8,13 @@ from rest_framework.decorators import action
 from rest_framework.permissions import BasePermission, IsAuthenticated, AllowAny, IsAdminUser
 from django.shortcuts import get_object_or_404
 from ectd.extra.msg import Msg
-
+import re
 from django.core.mail import EmailMessage
 from django.contrib.sites.shortcuts import get_current_site
 from django.utils.encoding import force_bytes, force_text
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.template.loader import render_to_string
+# from django.contrib.auth.tokens import default_token_generator
 from ectd.extra.tokens import account_activation_token
 # class IsAdminOrIsSelf(BasePermission):
 #     def has_object_permission(self, request, view, obj):
@@ -110,50 +110,67 @@ class AccountList(APIView):
     permission_classes = (AllowAny ,)
 
     def post(self, request, format=None):
+        if not re.search(r"^[\w\.\+\-]+\@[\w]+\.[a-z]{2,3}$", request.data['username']):
+            return Response({'msg': 'Email invalid'}, status=status.HTTP_400_BAD_REQUEST)
         request.data['is_active'] = False
-        serializer = AccountSerializer(data=request.data)
-        if serializer.is_valid():
-            user = User(**serializer.validated_data)
-            self.send_email(user, request)
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        request.data['email']=request.data['username']
+        user = User.objects.create(**request.data)
+        self.send_email(user, request)
+        return Response({'msg': 'Account created'}, status=status.HTTP_201_CREATED)
+        # serializer = AccountSerializer(data=request.data)
+        # if serializer.is_valid():
+        #     user = User(**serializer.validated_data)
+        #     serializer.save()
+        #     self.send_email(user, request)
+        #     return Response({'msg': 'Account created'}, status=status.HTTP_201_CREATED)
+        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(methods=['get'], detail=True, )
-    def activate(self, request, uid=None, token=None):  # does not work
-        print(uid)
-        try:
-            uid = force_text(urlsafe_base64_decode(uidb64))
-            user = User.objects.get(pk=uid)
-        except(TypeError, ValueError, OverflowError, User.DoesNotExist):
-            user = None
-        if user is not None and account_activation_token.check_token(user, token):
-            user.is_active = True
-            user.save()
-            return Response({'msg': 'Thank you for your email confirmation. Now you can login your account.'})
-        else:
-            return Response({'msg':'Activation link is invalid!'}, status=status.HTTP_400_BAD_REQUEST)
+    # @action(methods=['get'], detail=True, )
+    # def activate(self, request, uid=None, token=None):  # does not work
+    #     print(uid)
+    #     try:
+    #         uid = force_text(urlsafe_base64_decode(uid))
+    #         user = User.objects.get(pk=uid)
+    #     except(TypeError, ValueError, OverflowError, User.DoesNotExist):
+    #         user = None
+    #     if user is not None and account_activation_token.check_token(user, token):
+    #         user.is_active = True
+    #         user.save()
+    #         return Response({'msg': 'Thank you for your email confirmation. Now you can login your account.'})
+    #     else:
+    #         return Response({'msg':'Activation link is invalid!'}, status=status.HTTP_400_BAD_REQUEST)
 
     def send_email(self, user, request):
         current_site = get_current_site(request)
-        mail_subject = 'Activate your account.'
-        uid = urlsafe_base64_encode(force_bytes(user.pk)).decode("utf-8")
-     
+        mail_subject = 'Activate your account.'   
+        print(user.pk, user.email)
         message = render_to_string('activate_email.html', {
             'user': user,
             'domain': current_site.domain,
-            'uid':urlsafe_base64_encode(force_bytes(user.pk)),
+            'uid': urlsafe_base64_encode(force_bytes(user.pk)).decode(), #urlsafe_base64_encode(force_bytes(user.pk)),
             'token':account_activation_token.make_token(user),
         })
         
-        #message='http://'+current_site.domain+'/users/register/activate/'+uid+'/'+account_activation_token.make_token(user)
         to_email = request.data['email']
-        email = EmailMessage(
-                    mail_subject, message, to=[to_email]
-        )
+        email = EmailMessage( mail_subject, message, to=[to_email])
         email.send()
 
+class ActivateAccount(APIView):
+    permission_classes = (AllowAny ,)
 
+    def post(self, request, format=None):
+        try:
+            uid = force_text(urlsafe_base64_decode(request.data['uid']))
+            user = User.objects.get(pk=uid)
+            print(user.pk, user.email)
+            if account_activation_token.check_token(user, request.data['token']):
+                user.is_active = True
+                user.save()
+                return Response({'msg': 'Account activated'})
+            else:
+                return Response({'msg':'Activation link is invalid!'}, status=status.HTTP_400_BAD_REQUEST)
+        except(TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response({'msg':'error'}, status=status.HTTP_400_BAD_REQUEST)
 
 class GroupViewSet(viewsets.ModelViewSet):
     permission_classes = (IsAdminUser ,)

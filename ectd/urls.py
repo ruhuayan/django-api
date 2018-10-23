@@ -23,12 +23,12 @@ from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token
 
 from ectd.applications.models import *
 router = routers.DefaultRouter()
-# router.register(r'users', views.UserViewSet)
 router.register(r'groups', views.GroupViewSet)
 router.register(r'templates', TemplateViewSet)
 router.register(r'companies', CompanyViewSet, base_name='company')
 router.register(r'applications', ApplicationViewSet, base_name='application')
 router.register(r'users', views.UserViewSet, base_name='user')
+# router.register(r'users/register', views.AccountList, base_name='register')
 router.register(r'employees', EmployeeViewSet, base_name='employee')
 router.register(r'contacts', ContactViewSet, base_name='contact')
 router.register(r'appinfos', AppinfoViewSet, base_name='appinfo')
@@ -52,9 +52,9 @@ urlpatterns = [
     url(r'^api-token-auth/', obtain_jwt_token),
     url(r'^api-token-refresh/', refresh_jwt_token),
     url(r'^users/register', views.AccountList.as_view()),
+    url(r'^users/activate', views.ActivateAccount.as_view()),
     url(r'^applications/(?P<app_id>[0-9]+)/fileUpload', FileUploadView.as_view()),
-    url(r'applications/(?P<app_id>\d+)/nodes/(?P<node_id>[0-9a-zA-z]+)/tag', tag_detail, name='tag'),
-    # url(r'^files/(?P<fid>\d+)/pdf', Pdf.as_view())
-    # url(r'^activate/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,20})/$',
-    #     views.activate, name='activate')
+    url(r'^applications/(?P<app_id>\d+)/nodes/(?P<node_id>[0-9a-zA-z]+)/tag', tag_detail, name='tag'),
+    # url(r'^activate/(?P<uid>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,20})/$',
+    #     views.Activate.as_view(), name='activate')
 ]
