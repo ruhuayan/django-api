@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import RegexValidator
 # from django.db.models.signals import post_save
 # from django.dispatch import receiver
 # Create your models here.
@@ -30,7 +31,7 @@ class Company(AuditModel):
     # owner = models.OneToOneField(User, related_name='owner', on_delete=models.PROTECT) 
     name = models.CharField(max_length=50, unique=True)
     address = models.CharField(max_length=255)
-    telephone = models.CharField(max_length=15)
+    telephone = models.CharField(max_length=15, validators=[RegexValidator(regex='^\d{9,13}$', message='telephone ranges from 9 to 13 digits', code='nomatch')])
     city = models.CharField(max_length=30)
     province = models.CharField(max_length=30)
     country = models.CharField(max_length=30)
@@ -41,9 +42,10 @@ class Application(AuditModel): #ManagerModel
     template = models.ForeignKey(Template, on_delete=models.PROTECT)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='applications')
     description = models.CharField(max_length=50)
-    number = models.CharField(max_length=50)
-    sequence = models.CharField(max_length=50)
+    number = models.CharField(validators=[RegexValidator(regex='^\d{6}$', message='number must be 6 digits', code='nomatch')])
+    sequence = models.CharField(validators=[RegexValidator(regex='^\d{4}$', message='sequence must be 4 digits', code='nomatch')])
     seqDescription = models.CharField(max_length=50, blank=True, null=True )
+    path = models.FilePathField(max_length=100, blank=True, null=True)
     class Meta:
         unique_together = ('number', 'sequence',)
     
@@ -89,14 +91,15 @@ class Appinfo(AuditModel):
 class File(AuditModel):
     application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='files')
     name = models.CharField(max_length=50)
-    url = models.URLField(max_length=100)
+    url = models.FilePathField(max_length=100)
+    dest_url = models.FilePathField(max_length=200, blank=True, null=True)
     size = models.IntegerField() #validator = [MaxValueValidator(120000000)]
     # status = models.IntegerField(max_length=1)
 
 class FileState(models.Model):
     file = models.ForeignKey(File, on_delete=models.CASCADE, related_name='states' )
     action = models.CharField(max_length=255)
-    path = models.FilePathField(max_length=100)
+    # path = models.FilePathField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
 
 class Node(AuditModel):

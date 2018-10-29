@@ -2,6 +2,9 @@
 from ectd.applications.models import *
 from ectd.applications.serializers import *
 from ectd.extra.msg import Msg
+from ectd.settings import APP_DIR
+from ectd.extra.tokens import account_activation_token
+from django.template.loader import render_to_string
 # from django.core import serializers as core_serializers
 # from django.http import JsonResponse
 from rest_framework.views import APIView
@@ -21,14 +24,15 @@ import os
 import uuid
 import json
 from ectd.PyPDF2 import PdfFileWriter, PdfFileReader
-
 from ectd.PyPDF2.canvas import drawBackground, drasString
 from ectd.PyPDF2.utils import b_
 import io
+import shutil
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.graphics.shapes import Rect
 from reportlab.lib.colors import Color
+from xml.etree.ElementTree import Element, SubElement, Comment, tostring
 # from rest_framework import mixins
 # from rest_framework import generics
 
@@ -109,9 +113,8 @@ class CompanyViewSet(viewsets.ViewSet):
     def create(self, request):
         try: 
             company = Company.objects.create(**request.data)
-            # print(repr(company))
             employee = Employee.objects.create(user=request.user, company=company, role='ADMIN')
-            # serializer_comp = CompanySerializer(company)
+
             serializer = CompanySerializer(company)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except IntegrityError:
@@ -120,7 +123,6 @@ class CompanyViewSet(viewsets.ViewSet):
             return Response(Msg.INTETRITY_ERROR, status.HTTP_406_NOT_ACCEPTABLE)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
     def update(self, request, pk=None):
         try:
@@ -181,6 +183,49 @@ class CompanyViewSet(viewsets.ViewSet):
         except Company.DoesNotExist:
             return Response(Msg.COMPANY_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
 
+    @action(methods=['post'], detail=True)
+    def invite(self, request, pk=None):
+        try: 
+            company = Company.objects.get(pk=pk)
+            if request.user == company.owner:
+                self.__send_invite(request.data['email'], company)
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        except Company.DoesNotExist:
+            return Response(Msg.COMPANY_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+    
+    def __send_invite(self, to_email, company):
+        mail_subject = 'You are invited to join {} in Ectd}.'.format(company.name)   
+        message = render_to_string('invite_email.html', {
+            'email': to_email,
+            'domain': 'Ectd',
+            'company_id': urlsafe_base64_encode(force_bytes(company.pk)).decode(), #urlsafe_base64_encode(force_bytes(user.pk)),
+            'token':account_activation_token.make_token(company),
+        })
+        email = EmailMessage( mail_subject, message, to=[to_email])
+        email.send()
+
+class EmployeeConfirm(APIView):
+    permission_classes = (AllowAny ,)
+
+    def post(self, request, format=None):
+        try:
+            company_id = force_text(urlsafe_base64_decode(request.data.pop['company_id']))
+            company = Company.objects.get(pk=company_id)
+            if not account_activation_token.check_token(company, request.data.pop['token']):
+                return Response({'msg':'Company Token is invalid!'}, status=status.HTTP_400_BAD_REQUEST)
+
+            with transaction.atomic():
+                request.data['is_active'] = True
+                user = User.objects.create_user(**request.data)
+                employee = Employee.objects.create(company=company, user=user, firstName='', lastName='')
+                serializer = EmployeeSerializer(employee)
+                return Response({'msg': 'Account Created under {}'.format(company.name)})
+                
+        except(TypeError, ValueError, OverflowError, User.DoesNotExist, Company.DoesNotExist):
+            return Response({'msg':'error'}, status=status.HTTP_400_BAD_REQUEST)
+        except IntegrityError:
+            return Response(Msg.INTETRITY_ERROR, status.HTTP_406_NOT_ACCEPTABLE)
+
 class ApplicationViewSet(viewsets.ViewSet):
 
     def list(self, request):
@@ -221,9 +266,14 @@ class ApplicationViewSet(viewsets.ViewSet):
             if not len(nodes): 
                 raise ValueError('no nodes')
             with transaction.atomic():
+                
                 application = Application.objects.create(company=company, template=template, **request.data)
+                path = os.path.join(APP_DIR, company.name, 'app_{}'.format(application.id))
+                application.path = path 
+                application.save()
                 # create app folder 
-                APP_PATH = '/home/ectd/{}/app_{}/{}'.format(company.name, application.id, application.number)
+                # APP_PATH = '/home/ectd/{}/app_{}/{}'.format(company.name, application.id, application.number)
+                APP_PATH = os.path.join(path, application.number, application.sequence)
                 # APP_PATH = 'C:\shares\django\{}\\app_{}\{}'.format(company.name, application.id, application.number)
 
                 os.makedirs(APP_PATH, exist_ok=True)
@@ -362,6 +412,8 @@ class ApplicationViewSet(viewsets.ViewSet):
             application = Application.objects.get(pk=pk)
             if request.user.is_superuser or application.company.id == employee.company.id:
                 nodes = json.loads(request.data['nodes'])
+                ori_nodes = Node.objects.filter(application = application)
+                APP_PATH = os.path.join(application.path, application.number, application.seqence)
                 if not len(nodes): 
                     raise ValueError('no nodes')
                 query_set=[]
@@ -369,14 +421,25 @@ class ApplicationViewSet(viewsets.ViewSet):
                     for n in nodes:
                         print(repr(n))
                         node, created = Node.objects.update_or_create(application=application, id=n['id'], defaults=n)
-                        #try:
-                        #   node = Node.objects.get(application=application, id=n['id'])
-                        #   for key, value in n.items():
-                        #       setattr(obj, key, value)
-                        #   node.save()
-                        # except Node.DoesNotExist:
-                        #     node = Node.objects.create(application=application, **n)
                         query_set.append(node)
+
+                        if node.type == 'file':
+                            node_path = self.__find_parents(ori_nodes, node.parent)
+                            path = os.path.join(APP_PATH, node_path)
+                            if not os.path.exists(path):
+                                os.makedirs(path, exist_ok=True)
+                            try:
+                                file = File.objects.get(pk=node.id)
+                                if created: 
+                                    shutil.copy2(os.path.join(file.url, file.name), path)
+                                else:
+                                    shutil.move(os.path.join(file.dest_url, file.name), path)
+                                file.dest_url = path
+                                file.save()
+
+                            except File.DoesNotExist:
+                                return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+
                 serializer = NodeSerializer(query_set, many=True)
                 return Response(serializer.data)
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
@@ -410,17 +473,53 @@ class ApplicationViewSet(viewsets.ViewSet):
     
     #API: /application/5/download
     @action(methods=['get'], detail=True,)
-    def download(self, request, pk=None):
+    def download(self, request, pk=None):        
         try: 
             employee = Employee.objects.get(user=request.user)
             application = Application.objects.get(pk=pk)
-            if request.user.is_superuser or application.company.id == employee.company.id:
-                return Response({'data': 'folders and files'})
-            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+            if not application.company.id == employee.company.id:
+                return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+            app_path = os.path.join(application.path, application.number, application.sequence)
+            self.__remove_empty_folders(app_path)
+            self.__create_index(application, app_path)
+            
         except Employee.DoesNotExist:
             return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
             return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)      
+
+    def __find_parents(self, nodes, parent, parents=[]):
+        if parent =='#':
+            return os.path.join(*parents.reverse())
+        for node in nodes:
+            if node.name == parent:
+                parents.append(parent)
+                return self.__find_parents(self, nodes, node.parent)
+    
+    def __remove_empty_folders(self, path):
+        if not os.path.isdir(path):
+            return
+        try:
+            for root, dirs, files in os.walk(path, topdown = False):
+                for d in dirs:
+                    full_path = os.path.join(root, d)
+                    if all(os.path.isdir(file) for file in os.listdir(full_path)):
+                        os.rmdir(full_path)  
+        except OSError as ex:
+            print('Error :', ex)
+
+    def __create_index(self, application, app_path):
+        data = Element('ectd:ectd') 
+
+        index_xml = tostring(data)
+        index_file = open(os.path.join(app_path, "index.xml"), "w")  
+        index_file.write(mydata) 
+
+    def __create_regional(self, application):
+        pass
+    def __create_stf(self, application):
+        pass
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     def list(self, request):
@@ -460,7 +559,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return Response(Msg.INTETRITY_ERROR, status=status.HTTP_406_NOT_ACCEPTABLE)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
     def update(self, request, pk=None):
         try:
@@ -674,27 +772,27 @@ class FileViewSet(viewsets.ModelViewSet):
 
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
     
-    def update(self, request, pk=None):   
-        try:
-            employee = Employee.objects.get(user=request.user)
-            file = File.objects.get(pk=pk)
-            application = Application.objects.get(pk=file.application.id)
-        except Employee.DoesNotExist:
-            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        except File.DoesNotExist:
-            return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        except Application.DoesNotExist:
-            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+    # def update(self, request, pk=None):   
+    #     try:
+    #         employee = Employee.objects.get(user=request.user)
+    #         file = File.objects.get(pk=pk)
+    #         application = Application.objects.get(pk=file.application.id)
+    #     except Employee.DoesNotExist:
+    #         return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+    #     except File.DoesNotExist:
+    #         return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+    #     except Application.DoesNotExist:
+    #         return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         
-        request.data['application'] = application.id
-        serializer = FileSerializer(contact, data=request.data)
+    #     request.data['application'] = application.id
+    #     serializer = FileSerializer(contact, data=request.data)
        
-        if request.user.is_superuser or application.company.id == employee.company.id:
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+    #     if request.user.is_superuser or application.company.id == employee.company.id:
+    #         if serializer.is_valid():
+    #             serializer.save()
+    #             return Response(serializer.data)
+    #         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    #     return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
     def destroy(self, request, pk=None):
         try: 
@@ -713,6 +811,10 @@ class FileViewSet(viewsets.ModelViewSet):
                 file_path = os.path.join(file.url, file.name)
                 if os.path.exists(file_path):
                     os.remove(file_path)
+                if file.des_url:
+                    last_file = os.path.join(file.dest_url, file.name)
+                    if os.path.exists(last_file):
+                        os.remove(last_file)
             except OSError as err:
                 return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
             # File.objects.filter(pk=pk).update(deleted=True,deleted_at=timezone.now(), deleted_by=request.user)
@@ -757,13 +859,13 @@ class FileViewSet(viewsets.ModelViewSet):
     def last_file(self, request, pk=None):
         try:
             file = File.objects.get(pk=pk)
-            state = FileState.objects.filter(file=file).last()
+            # state = FileState.objects.filter(file=file).last()
             application = Application.objects.get(pk=file.application.id)
             employee = Employee.objects.get(user=request.user)
         except File.DoesNotExist:
             return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        except FileState.DoesNotExist:
-            return Response(Msg.FILESTATE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        # except FileState.DoesNotExist:
+        #     return Response(Msg.FILESTATE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
             return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Employee.DoesNotExist: 
@@ -771,21 +873,17 @@ class FileViewSet(viewsets.ModelViewSet):
             
         if not request.user.is_superuser and not application.company.id == employee.company.id:
             return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
-        if state:
-            # state = states[-1]
-            path = os.path.join(state.path, file.name)
+        if file.dest_url:
+            path = os.path.join(file.dest_url, file.name)
         else:
             path = os.path.join(file.url, file.name)
         try: 
-            # with open(path, 'r',  errors='ignore') as f:
-            #     data = f.read() 
             fileobj = open(path, 'rb')
             buffer = io.BytesIO(b_(fileobj.read()))
             fileobj.close()
             return HttpResponse(buffer.getvalue(), content_type='application/pdf')
         except OSError:
             return Response({'msg': 'Cannot read file from server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
-        # return Response({'data': data})
 
     @action(methods=['get'], detail=True,)
     def last_state(self, request, pk=None):
@@ -838,9 +936,9 @@ class FileUploadView(APIView):
                 return Response({'msg': 'File size over limit'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             file_folder = uuid.uuid4().hex
-            #path = '/Users/nebula-ai/Desktop/django/{}/app_{}/{}'.format(application.company.name, app_id, file_folder)         # MAC path
-            path = '/home/ectd/{}/app_{}/{}'.format(application.company.name, app_id,file_folder)                 # ubuntu
+            # path = '/home/ectd/{}/app_{}/{}'.format(application.company.name, app_id,file_folder)                 # ubuntu
             # path = 'C:/shares/django/app_{}/{}'.format(app_id,file_folder)  # Window path
+            path = os.path.join(application.path, file_folder)
             url = os.path.join(path, up_file.name) #path+'/' + up_file.name
 
             if not os.path.exists(path):
@@ -877,27 +975,6 @@ class FileStateViewSet(viewsets.ModelViewSet):
             serializer = FileStateSerializer(queryset, many=True)
             return Response(serializer.data)
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
-
-    # def retrieve(self, request, pk=None):
-    #     try:
-    #         fileState = FileState.objects.get(pk=pk)
-    #         file = File.objects.get(pk=fileState.file.id)
-    #         application = Application.objects.get(pk=file.application.id)
-    #         employee = Employee.objects.get(user=request.user)
-    #     except FileState.DoesNotExist:
-    #         return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-    #     except File.DoesNotExist:
-    #         return Response(Msg.FILE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND) 
-    #     except Application.DoesNotExist:
-    #         return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-    #     except Employee.DoesNotExist: 
-    #         return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        
-    #     if request.user.is_superuser or application.company.id == employee.company.id:
-    #         serializer = FileStateSerializer(file)
-    #         return Response(serializer.data)
-
-    #     return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
     
     def create(self, request, file_id=None):
         #"action": "{\"links\":[{\"pageNum\":0, \"rect\":[0, 0, 20, 10], \"uri\":\"www.richyan.com\"}]}"
@@ -975,7 +1052,9 @@ class FileStateViewSet(viewsets.ModelViewSet):
                 print(repr(link['rect']))
                 writer.addURI(int(link['page'])-1, link['uri'], link['rect'])
 
-            output_path = os.path.join(f.url, 'states')
+            if f.dest_url == None:
+                return Response({'msg': 'file dest path does not exist'}, status=status.HTTP_404_NOT_FOUND)
+            output_path = f.dest_url #os.path.join(f.url, 'states')
             try:
                 if not os.path.exists(output_path):
                     os.mkdir(output_path)

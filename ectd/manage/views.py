@@ -6,7 +6,7 @@ from ectd.manage.serializers import UserSerializer, GroupSerializer, PasswordSer
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import BasePermission, IsAuthenticated, AllowAny, IsAdminUser
-from django.shortcuts import get_object_or_404
+# from django.shortcuts import get_object_or_404
 from ectd.extra.msg import Msg
 import re
 from django.db import IntegrityError
