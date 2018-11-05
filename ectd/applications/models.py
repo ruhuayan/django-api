@@ -42,8 +42,8 @@ class Application(AuditModel): #ManagerModel
     template = models.ForeignKey(Template, on_delete=models.PROTECT)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='applications')
     description = models.CharField(max_length=50)
-    number = models.CharField(validators=[RegexValidator(regex='^\d{6}$', message='number must be 6 digits', code='nomatch')])
-    sequence = models.CharField(validators=[RegexValidator(regex='^\d{4}$', message='sequence must be 4 digits', code='nomatch')])
+    number = models.CharField(max_length=6, validators=[RegexValidator(regex='^\d{6}$', message='number must be 6 digits', code='nomatch')])
+    sequence = models.CharField(max_length=4, validators=[RegexValidator(regex='^\d{4}$', message='sequence must be 4 digits', code='nomatch')])
     seqDescription = models.CharField(max_length=50, blank=True, null=True )
     path = models.FilePathField(max_length=100, blank=True, null=True)
     class Meta:

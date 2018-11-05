@@ -21,8 +21,8 @@ from django.conf import settings
 from django.views.generic import View
 from django.http import HttpResponse
 import os
-import uuid
 import json
+import hashlib
 from ectd.PyPDF2 import PdfFileWriter, PdfFileReader
 from ectd.PyPDF2.canvas import drawBackground, drasString
 from ectd.PyPDF2.utils import b_
@@ -32,7 +32,8 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.graphics.shapes import Rect
 from reportlab.lib.colors import Color
-from xml.etree.ElementTree import Element, SubElement, Comment, tostring
+from xml.etree.ElementTree import Element, SubElement, tostring
+
 # from rest_framework import mixins
 # from rest_framework import generics
 
@@ -260,15 +261,15 @@ class ApplicationViewSet(viewsets.ViewSet):
             
             if not company.activated:
                 print('company not activated')
-           
+            
             nodes = json.loads(template.content)
-            # print(repr(nodes))
             if not len(nodes): 
                 raise ValueError('no nodes')
+            
             with transaction.atomic():
-                
                 application = Application.objects.create(company=company, template=template, **request.data)
                 path = os.path.join(APP_DIR, company.name, 'app_{}'.format(application.id))
+                
                 application.path = path 
                 application.save()
                 # create app folder 
@@ -278,10 +279,16 @@ class ApplicationViewSet(viewsets.ViewSet):
 
                 os.makedirs(APP_PATH, exist_ok=True)
                 print(os.path.exists(APP_PATH))
+                util_path = os.path.join(APP_PATH, 'util')
+                os.makedirs(util_path, exist_ok=True)
+                self.__copytree(os.path.join(APP_DIR, 'util'), util_path)
+                
                 for n in nodes:
-                    if(n['parent']=='#'):
+                    if n['id']=='sub1':
                         n['text'] = application.sequence
+                        # print(repr(n))
                     n['original'] = True;
+                    # print(repr(n))
                     node = Node.objects.create(application=application, **n)
                     
                     #need to create folders
@@ -294,7 +301,7 @@ class ApplicationViewSet(viewsets.ViewSet):
         except Company.DoesNotExist:
             return Response(Msg.COMPANY_NOT_FOUND,status=status.HTTP_404_NOT_FOUND )
         except IntegrityError:
-            return Response(Msg.INTETRITY_ERROR, status.HTTP_406_NOT_ACCEPTABLE)
+            return Response(Msg.INTETRITY_ERROR, status=status.HTTP_406_NOT_ACCEPTABLE)
         except ValueError:
             return Response({'msg': 'template content error'}, status=status.HTTP_204_NO_CONTENT)
         except Exception as error:
@@ -413,18 +420,19 @@ class ApplicationViewSet(viewsets.ViewSet):
             if request.user.is_superuser or application.company.id == employee.company.id:
                 nodes = json.loads(request.data['nodes'])
                 ori_nodes = Node.objects.filter(application = application)
-                APP_PATH = os.path.join(application.path, application.number, application.seqence)
+                APP_PATH = os.path.join(application.path, application.number, application.sequence)
                 if not len(nodes): 
                     raise ValueError('no nodes')
                 query_set=[]
                 with transaction.atomic():
                     for n in nodes:
-                        print(repr(n))
+                        # print(repr(n))
                         node, created = Node.objects.update_or_create(application=application, id=n['id'], defaults=n)
                         query_set.append(node)
 
                         if node.type == 'file':
-                            node_path = self.__find_parents(ori_nodes, node.parent)
+                            node_path = self.__get_node_path(ori_nodes, node.parent, [])
+                            print(node_path)
                             path = os.path.join(APP_PATH, node_path)
                             if not os.path.exists(path):
                                 os.makedirs(path, exist_ok=True)
@@ -482,21 +490,253 @@ class ApplicationViewSet(viewsets.ViewSet):
 
             app_path = os.path.join(application.path, application.number, application.sequence)
             self.__remove_empty_folders(app_path)
-            self.__create_index(application, app_path)
-            
+            md5sum = self.__create_index(application, app_path)
+            with open(os.path.join(app_path, 'index_md5.txt'), 'w') as f:
+                f.write(md5sum)
+            # create zip file first time
+            import zipfile
+            output = StringIO.StringIO()
+        
+            zf = zipfile.ZipFile(output, 'w')
+            for dirname, subdirs, files in os.walk(path):
+                zf.write(dirname)
+                for filename in files:
+                    zf.write(os.path.join(dirname, filename))
+            zf.close()
+            return HttpResponse(output, content_type='application/zip')
+        except OSError:
+            return Response({'msg': 'Cannot read file from server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Employee.DoesNotExist:
             return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
-            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)      
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)   
 
-    def __find_parents(self, nodes, parent, parents=[]):
-        if parent =='#':
-            return os.path.join(*parents.reverse())
+    def __create_index(self, application, app_path):
+        
+        nodes = Node.objects.filter(application=application)
+        root = Element('ectd:ectd') 
+        elems = {}
         for node in nodes:
-            if node.name == parent:
-                parents.append(parent)
-                return self.__find_parents(self, nodes, node.parent)
+            if node.parent == '#':
+                continue
+            elif node.parent=='sub1':
+                elems[node.id] = SubElement(root, 'm{}'.format(node.text.lower().replace(' ', '-')))
+                if node.id == 'm1':
+                    md5sum = self.__create_regional(application, nodes)
+                    leaf = SubElement(elems['m1'], 'leaf')
+                    elem.set('ID', uuid.uuid4().hex)
+                    elem.set('operation', 'new')
+                    elem.set('xlink:href', 'm1/us/us-regional.xml')
+                    elem.set('checksum', md5sum)
+                    elem.set('checksum-type', 'MD5')
+                    title = SubElement(elem, 'title')
+                    title.text = 'USA'
+
+            elif node.type=='file' and not node.parent.index('m1') >= 0:
+                file = File.objects.get(pk=node.id)
+                if node.parent.index('m4')>=0 or node.parent.index('m5')>=0:
+
+                    md5sum = self.__md5sum(os.path.join(file.dest_url, file.name))
+                    leaf = SubElement(elems[node.parent], 'leaf')
+                    leaf_id = uuid.uuid4().hex
+                    leaf.set('ID', leaf_id)
+                    leaf.set('operation', 'new')
+                    leaf.set('xlink:href', '{}/{}'.format(file.dest_url, file.name))
+                    leaf.set('checksum', md5sum)
+                    elem.set('checksum-type', 'MD5')
+                    title = SubElement(elem, 'title')
+                    title.text = node.text
+
+                    tag = Tag.objects.get(node=node)
+                    path, md5sum = self.__create_stf(file.dest_url, tag, leaf_id)
+                    elem = SubElement(elems[node.parent], 'leaf')
+                    elem.set('ID', uuid.uuid4().hex)
+                    elem.set('operation', 'new')
+                    elem.set('xlink:href', path)
+                    elem.set('checksum', md5sum)
+                    elem.set('checksum-type', 'MD5')
+                    elem.set('version', 'STF Version 2.2')
+                    title = SubElement(elem, 'title')
+                    title.text = node.text
+
+                else: 
+                    md5sum = self.__md5sum(os.path.join(file.dest_url, file.name))
+                    elem = SubElement(elems[node.parent], 'leaf')
+                    elem.set('ID', uuid.uuid4().hex)
+                    elem.set('operation', 'new')
+                    elem.set('xlink:href', '{}/{}'.format(file.dest_url, file.name))
+                    elem.set('checksum', md5sum)
+                    elem.set('checksum-type', 'MD5')
+                    title = SubElement(elem, 'title')
+                    title.text = node.text
+            else:
+                elems[node.id] = SubElement(dist[node.parent], 'm{}'.format(node.text.lower().replace(' ', '-')))
+                tag = Tag.objects.get(node = node)
+                if not tag:
+                    continue
+                if node.text.index('m2.3S') or node.text.index('m3.3S'):
+                    elems[node.id].set('manufacturer', tag.manufacturer)
+                    elems[node.id].set('substance', tag.substance)
+                elif node.text.index('m2.3P') or node.text.index('m3.3P'):
+                    elems[node.id].set('manufacturer', tag.manufacturer)
+                    elems[node.id].set('dosageform', tag.dosage)
+                    elems[node.id].set('product-name', tag.productName)
+                else:
+                    for k, v in vars(tag).items():
+                        if v:
+                            elems[node.id].set(k, v)
+
+        index_xml = tostring(root)
+        md5sum = None
+        with open(os.path.join(app_path, "index.xml"), "r+b") as index_file:
+            index_file.write(index_xml)
+            md5sum = hashlib.md5(reg_file.read()).hexdigest()
+        return md5sum
     
+    def __md5sum(filename, blocksize=65536):
+        hash = hashlib.md5()
+        with open(filename, "rb") as f:
+            for block in iter(lambda: f.read(blocksize), b""):
+                hash.update(block)
+        return hash.hexdigest()
+
+    def __create_regional(self, application, nodes):
+        app = Appinfo.objects.get(application = application)
+        contacts = Contact.objects.filter(application = application)
+        contact = contacts.filter(contactType = 'AGT')
+        if not contact:
+            contact = contacts[0]
+        root = Element('fda-regional:fda-regional') 
+        root.set('dtd-version', '3,3')
+        root.set('xmlns:fda-regional','http://www.ich.org/fda')
+        root.set('xmlns:xlink', 'http://www.w3c.org/1999/xlink')
+
+        admin = SubElement(root, 'admin')
+
+        # start Element appinfo
+        appinfo = SubElement(admin, 'application-info')
+        appinfo_id = SubElement(appinfo, 'id')
+        appinfo_id.text = app.dunso  #not sure
+        c_name = SubElement(appinfo, 'company-name')
+        c_name.text = app.companyName
+        s_description = SubElement(appinfo, 'submission-description')
+        s_description.text = app.description
+        app_contacts = SubElement(appinfo, 'applicant-contacts')
+        app_contact = SubElement(app_contacts, 'applicant-contact')
+        contact_name = SubElement(app_contact, 'applicant-contact-name')
+        contact_name.set('applicant-contact-type', 'fdaact3')
+        contact_name.text = contact.contactName
+        telephones = SubElement(app_contact, 'telephones')
+        telephone = SubElement(telephones, 'telephone')
+        telephone.set('telephone-number-type', 'fdatnt1')
+        telephone.text = contact.phone
+        emails = SubElement(app_contacts, 'emails')
+        email = SubElement(emails, 'email')
+        email.text = contact.email
+        #end Element appinfo
+
+        app_set = SubElement(admin, 'application-set')
+        app_application = SubElement(app_set, '<application')
+        app_application.set('application-containing-files', 'true')
+        app_information = SubElement(app_application, 'application-information')
+        app_number = SubElement(app_information, 'application-number')
+        app_number.set('application-type', 'fdaat4')       # not sure
+        app_number.text = application.number
+        s_information = SubElement(app_application, 'submission-information')
+        s_id = SubElement(s_information, 'submission-id')
+        s_id.set('submission-type', 'fdast1')   #not sure
+        s_id.text = app.subId
+        s_number = SubElement(s_information, 'sequence-number')
+        s_number.set('submission-sub-type', 'fdasst3')
+        s_number.text = application.sequence
+        ######
+        form_path = os.path.join(application.path, application.number, application.sequence, 'm1/m1us/m11.1/fda-form-1571.pdf')
+        if os.path.exists(form_path):
+            md5sum = self.__md5sum(form_path)
+            form = SubElement(s_information, 'form')
+            form.set('form-type', 'fdaft1')  #not sure
+            leaf = SubElement(form, 'leaf')
+            leaf.set('ID', uuid.uuid4().hex)
+            leaf.set('operation', 'new')
+            leaf.set('xlink:href', '11-forms/fda-form-1571.pdf')
+            leaf.set('checksum', md5sum)
+            leaf.set('checksum-type', 'MD5')
+            title = SubElement(leaf, 'title')
+            title.text = '1.1.1 FDA 1571'
+        #end admin
+
+        #m1-regional
+        reg = SubElement(root, 'm1-regional')
+        form_path = os.path.join(application.path, application.number, application.sequence, 'm1/m1us/m11.1/fda-form-3674.pdf')
+        if os.path.exists(form_path):
+            md5sum = self.__md5sum(form_path)
+            forms = SubElement(reg, 'm1-1-forms')
+            form = SubElement(forms, 'form')
+            form.set('form-type', 'fdaft7')  #not sure
+            leaf = SubElement(form, 'leaf')
+            leaf.set('ID', uuid.uuid4().hex)
+            leaf.set('operation', 'new')
+            leaf.set('xlink:href', '11-forms/fda-form-3674.pdf')
+            leaf.set('checksum', md5sum)
+            leaf.set('checksum-type', 'MD5')
+            title = SubElement(leaf, 'title')
+            title.text = '1.1.7 FDA 3674'
+        reg_xml = tostring(root)
+        app_path = os.path.join(application.path, application.number, application.sequence)
+        print(os.path.join(app_path, 'm1','m1us', 'us-regional.xml'))
+        with open(os.path.join(app_path, 'm1','m1us','us-regional.xml'), 'a+') as reg_file:
+            reg_file.write(mydata)
+            md5sum = hashlib.md5(reg_file.read()).hexdigest()
+            print(md5sum)
+        if md5sum: 
+            return md5sum
+        return null
+
+    def __create_stf(self, file_path, tag, leaf_id):
+        root = Element('ectd:study') 
+        root.set('dtd-version', '2.2')
+        root.set('xmlns:ectd','http://www.ich.org/ect')
+        root.set('xmlns:xlink', 'http://www.w3c.org/1999/xlink')
+
+        identifier = SubElement(root, 'study-identifier')
+        title = SubElement(identifier, 'title')
+        title.text = tag.title
+        study_id = SubElement(identifier, 'study-id')
+        study_id.text = tag.studyNumber
+
+        document = SubElement(root, 'study-document')
+        content = SubElement(document, 'doc-content')
+        content.set('xlink:href', '{}#{}'.format(file_path, leaf_id))             #file path
+        file_tag = SubElement(content, 'file-tag')
+        file_tag.set('name', tag.stfType)
+        file_tag.set('info-type', 'ich')
+        
+        stf = tostring(root)
+        stf_path = os.path.join(file_path, '{}.xml'.format(tag.studyNumer))
+        with open(sft_path) as stf_file:
+            stf_file.write(stf)
+            md5sum = hashlib.md5(stf_file.read()).hexdigest()
+        # if md5sum:
+        return stf_path, md5sum
+
+    def __get_node_path(self, nodes, parent, parents):
+        # print(repr(parents))
+        if parent =='sub1':
+            return os.path.join(*reversed(parents))
+        for node in nodes:
+            if node.id == parent:
+                parents.append(parent)
+                return self.__get_node_path(nodes, node.parent, parents)
+
+    # def __get_relative_path(self, path1, path2):
+    #     return os.path.relpath(path2, path1)
+    #     if path2.index(path1)==0:
+    #         return path2[0:len(path1)+1]
+    #     elif path1.index(path2)==0:
+    #         new_path = path1[0:len(path2)+2]
+    #         # new_path.split('/')
+    #     return null
+
     def __remove_empty_folders(self, path):
         if not os.path.isdir(path):
             return
@@ -508,18 +748,15 @@ class ApplicationViewSet(viewsets.ViewSet):
                         os.rmdir(full_path)  
         except OSError as ex:
             print('Error :', ex)
-
-    def __create_index(self, application, app_path):
-        data = Element('ectd:ectd') 
-
-        index_xml = tostring(data)
-        index_file = open(os.path.join(app_path, "index.xml"), "w")  
-        index_file.write(mydata) 
-
-    def __create_regional(self, application):
-        pass
-    def __create_stf(self, application):
-        pass
+    
+    def __copytree(self, src, dst, symlinks=False, ignore=None):
+        for item in os.listdir(src):
+            s = os.path.join(src, item)
+            d = os.path.join(dst, item)
+            if os.path.isdir(s):
+                shutil.copytree(s, d, symlinks, ignore)
+            else:
+                shutil.copy2(s, d)
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     def list(self, request):
@@ -934,7 +1171,8 @@ class FileUploadView(APIView):
                 return Response({'msg': 'File type not allowed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             if up_file.size > 100000000: #100M
                 return Response({'msg': 'File size over limit'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            
+            import uuid
             file_folder = uuid.uuid4().hex
             # path = '/home/ectd/{}/app_{}/{}'.format(application.company.name, app_id,file_folder)                 # ubuntu
             # path = 'C:/shares/django/app_{}/{}'.format(app_id,file_folder)  # Window path
@@ -1023,7 +1261,7 @@ class FileStateViewSet(viewsets.ModelViewSet):
                             y1 = page_h - y1
                             y2 = page_h - y2
                             link['rect'] = [x1, y1, x2, y2]
-                            print(link['rect'])
+                            # print(link['rect'])
                             packet = io.BytesIO()
                             blue50transparent = Color( 0, 0, 255, alpha=0.5)
                             can = canvas.Canvas(packet, pagesize=(page_w, page_h))
@@ -1033,6 +1271,7 @@ class FileStateViewSet(viewsets.ModelViewSet):
                             packet.seek(0)
                             new_pdf = PdfFileReader(packet)
                             page.mergePage(new_pdf.getPage(0))
+
                 if texts:
                     for text in texts:
                         if i==int(text['page'])-1: 
@@ -1049,8 +1288,10 @@ class FileStateViewSet(viewsets.ModelViewSet):
                 writer.addPage(page)
                 
             for link in links:
-                print(repr(link['rect']))
-                writer.addURI(int(link['page'])-1, link['uri'], link['rect'])
+                dest_file = File.objects.get(pk=link['tfid'])
+                path = os.path.relpath(dest_file.dest_url, f.dest_url)
+                uri = os.path.join(path, dest_file.name)
+                writer.addURI(int(link['page'])-1, uri, link['rect'])
 
             if f.dest_url == None:
                 return Response({'msg': 'file dest path does not exist'}, status=status.HTTP_404_NOT_FOUND)
@@ -1063,10 +1304,8 @@ class FileStateViewSet(viewsets.ModelViewSet):
             except OSError as err:
                 print("OS error: {0}".format(err))
                 return Response({'msg': 'Cannot write file to server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
-            # writer.write(open(output_path, "wb"))
-            # with file("destination.pdf", "wb") as outfp:
-            #     writer.write(outfp)
-            fileState = FileState.objects.create(file=f, action=request.data['action'], path=output_path)
+            
+            fileState = FileState.objects.create(file=f, action=request.data['action'])
             serializer = FileStateSerializer(fileState)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
             # return Response(links)
