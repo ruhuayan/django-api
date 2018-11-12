@@ -26,6 +26,7 @@ class Template(AuditModel):
     description = models.CharField(max_length=255, null=True)
     version = models.CharField(max_length=50, null=True)
     content = models.TextField(max_length =60000)
+    #path = models.FilePathField(max_length=100, blank=True, null=True)    
 
 class Company(AuditModel):
     # owner = models.OneToOneField(User, related_name='owner', on_delete=models.PROTECT) 

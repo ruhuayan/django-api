@@ -23,6 +23,8 @@ from django.http import HttpResponse
 import os
 import json
 import hashlib
+import uuid
+import re
 from ectd.PyPDF2 import PdfFileWriter, PdfFileReader
 from ectd.PyPDF2.canvas import drawBackground, drasString
 from ectd.PyPDF2.utils import b_
@@ -33,6 +35,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.graphics.shapes import Rect
 from reportlab.lib.colors import Color
 from xml.etree.ElementTree import Element, SubElement, tostring
+import xml.etree.ElementTree as ET
 
 # from rest_framework import mixins
 # from rest_framework import generics
@@ -495,15 +498,19 @@ class ApplicationViewSet(viewsets.ViewSet):
                 f.write(md5sum)
             # create zip file first time
             import zipfile
-            output = StringIO.StringIO()
-        
-            zf = zipfile.ZipFile(output, 'w')
-            for dirname, subdirs, files in os.walk(path):
-                zf.write(dirname)
-                for filename in files:
-                    zf.write(os.path.join(dirname, filename))
-            zf.close()
-            return HttpResponse(output, content_type='application/zip')
+            output = io.BytesIO()
+            len_path = len(application.path)
+            with zipfile.ZipFile(output, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+                for dirname, subdirs, files in os.walk(app_path):
+                    # zf.write(dirname)
+                    for filename in files:
+                        file_path = os.path.join(dirname, filename)
+                        zf.write(file_path, file_path[len_path:])
+
+            response = HttpResponse(output.getvalue(), content_type='application/x-zip-compressed')
+            response['Content-Disposition'] = 'attachment; filename={}.zip'.format(application.number)
+            response['Content-Length'] = output.tell()
+            return response
         except OSError:
             return Response({'msg': 'Cannot read file from server'}, status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Employee.DoesNotExist:
@@ -515,6 +522,9 @@ class ApplicationViewSet(viewsets.ViewSet):
         
         nodes = Node.objects.filter(application=application)
         root = Element('ectd:ectd') 
+        root.set('dtd-version', '3.2')
+        root.set('xmlns:ectd', 'http://www.ich.org/ectd')
+        root.set('xmlns:xlink', 'http://www.w3c.org/1999/xlink')
         elems = {}
         for node in nodes:
             if node.parent == '#':
@@ -524,17 +534,17 @@ class ApplicationViewSet(viewsets.ViewSet):
                 if node.id == 'm1':
                     md5sum = self.__create_regional(application, nodes)
                     leaf = SubElement(elems['m1'], 'leaf')
-                    elem.set('ID', uuid.uuid4().hex)
-                    elem.set('operation', 'new')
-                    elem.set('xlink:href', 'm1/us/us-regional.xml')
-                    elem.set('checksum', md5sum)
-                    elem.set('checksum-type', 'MD5')
-                    title = SubElement(elem, 'title')
+                    leaf.set('ID', uuid.uuid4().hex)
+                    leaf.set('operation', 'new')
+                    leaf.set('xlink:href', 'm1/us/us-regional.xml')
+                    leaf.set('checksum', str(md5sum))
+                    leaf.set('checksum-type', 'MD5')
+                    title = SubElement(leaf, 'title')
                     title.text = 'USA'
 
-            elif node.type=='file' and not node.parent.index('m1') >= 0:
+            elif node.type=='file' and not node.parent.rfind('m1') >= 0:
                 file = File.objects.get(pk=node.id)
-                if node.parent.index('m4')>=0 or node.parent.index('m5')>=0:
+                if node.parent.rfind('m4')>=0 or node.parent.rfind('m5')>=0:
 
                     md5sum = self.__md5sum(os.path.join(file.dest_url, file.name))
                     leaf = SubElement(elems[node.parent], 'leaf')
@@ -542,18 +552,22 @@ class ApplicationViewSet(viewsets.ViewSet):
                     leaf.set('ID', leaf_id)
                     leaf.set('operation', 'new')
                     leaf.set('xlink:href', '{}/{}'.format(file.dest_url, file.name))
-                    leaf.set('checksum', md5sum)
-                    elem.set('checksum-type', 'MD5')
-                    title = SubElement(elem, 'title')
+                    leaf.set('checksum', str(md5sum))
+                    leaf.set('checksum-type', 'MD5')
+                    title = SubElement(leaf, 'title')
                     title.text = node.text
-
-                    tag = Tag.objects.get(node=node)
-                    path, md5sum = self.__create_stf(file.dest_url, tag, leaf_id)
+                    try: 
+                        tag = Tag.objects.get(node=node)
+                        path, md5sum = self.__create_stf(file.dest_url, tag, leaf_id, app_path)
+                        elem.set('xlink:href', path)
+                        elem.set('checksum', str(md5sum))
+                    except Tag.DoesNotExist: 
+                        pass          #return false;
                     elem = SubElement(elems[node.parent], 'leaf')
                     elem.set('ID', uuid.uuid4().hex)
                     elem.set('operation', 'new')
-                    elem.set('xlink:href', path)
-                    elem.set('checksum', md5sum)
+                    
+                    
                     elem.set('checksum-type', 'MD5')
                     elem.set('version', 'STF Version 2.2')
                     title = SubElement(elem, 'title')
@@ -565,35 +579,39 @@ class ApplicationViewSet(viewsets.ViewSet):
                     elem.set('ID', uuid.uuid4().hex)
                     elem.set('operation', 'new')
                     elem.set('xlink:href', '{}/{}'.format(file.dest_url, file.name))
-                    elem.set('checksum', md5sum)
+                    elem.set('checksum', str(md5sum))
                     elem.set('checksum-type', 'MD5')
                     title = SubElement(elem, 'title')
                     title.text = node.text
             else:
-                elems[node.id] = SubElement(dist[node.parent], 'm{}'.format(node.text.lower().replace(' ', '-')))
-                tag = Tag.objects.get(node = node)
-                if not tag:
+                elems[node.id] = SubElement(elems[node.parent], 'm{}'.format(node.text.lower().replace(' ', '-')))
+                try: 
+                    tag = Tag.objects.get(node = node)
+                    if re.search('m[23].3S', node.text):
+                        elems[node.id].set('manufacturer', tag.manufacturer)
+                        elems[node.id].set('substance', tag.substance)
+                    elif re.search('m2.3P', node.text) or re.search('m3.3P', node.text):
+                        elems[node.id].set('manufacturer', tag.manufacturer)
+                        elems[node.id].set('dosageform', tag.dosage)
+                        elems[node.id].set('product-name', tag.productName)
+                    # else:
+                    #     for k, v in vars(tag).items():
+                    #         if v:
+                    #             elems[node.id].set(k, v)
+                except Tag.DoesNotExist:
                     continue
-                if node.text.index('m2.3S') or node.text.index('m3.3S'):
-                    elems[node.id].set('manufacturer', tag.manufacturer)
-                    elems[node.id].set('substance', tag.substance)
-                elif node.text.index('m2.3P') or node.text.index('m3.3P'):
-                    elems[node.id].set('manufacturer', tag.manufacturer)
-                    elems[node.id].set('dosageform', tag.dosage)
-                    elems[node.id].set('product-name', tag.productName)
-                else:
-                    for k, v in vars(tag).items():
-                        if v:
-                            elems[node.id].set(k, v)
-
-        index_xml = tostring(root)
+        header = '''<?xml version="1.0" encoding="utf-8"?>
+        <!DOCTYPE ectd:ectd SYSTEM "util/dtd/ich-ectd-3-2.dtd">
+        <?xml-stylesheet href="util/style/ectd-2-0.xsl" type="text/xsl"?>'''
+        index_xml = tostring(root).decode('utf-8')
         md5sum = None
-        with open(os.path.join(app_path, "index.xml"), "r+b") as index_file:
+        with open(os.path.join(app_path, "index.xml"), "w+") as index_file:
+            index_file.write(header)
             index_file.write(index_xml)
-            md5sum = hashlib.md5(reg_file.read()).hexdigest()
+            md5sum = hashlib.md5(index_file.read().encode('utf-8')).hexdigest()
         return md5sum
     
-    def __md5sum(filename, blocksize=65536):
+    def __md5sum(self, filename, blocksize=65536):
         hash = hashlib.md5()
         with open(filename, "rb") as f:
             for block in iter(lambda: f.read(blocksize), b""):
@@ -606,6 +624,9 @@ class ApplicationViewSet(viewsets.ViewSet):
         contact = contacts.filter(contactType = 'AGT')
         if not contact:
             contact = contacts[0]
+        header = '''<?xml version="1.0" encoding="utf-8"?>
+        <!DOCTYPE fda-regional:fda-regional SYSTEM "http://www.accessdata.fda.gov/static/eCTD/us-regional-v3-3.dtd">
+        <?xml-stylesheet href="http://www.accessdata.fda.gov/static/eCTD/us-regional.xsl" type="text/xsl"?>'''
         root = Element('fda-regional:fda-regional') 
         root.set('dtd-version', '3,3')
         root.set('xmlns:fda-regional','http://www.ich.org/fda')
@@ -666,9 +687,10 @@ class ApplicationViewSet(viewsets.ViewSet):
         #end admin
 
         #m1-regional
-        reg = SubElement(root, 'm1-regional')
         form_path = os.path.join(application.path, application.number, application.sequence, 'm1/m1us/m11.1/fda-form-3674.pdf')
         if os.path.exists(form_path):
+            reg = SubElement(root, 'm1-regional')
+
             md5sum = self.__md5sum(form_path)
             forms = SubElement(reg, 'm1-1-forms')
             form = SubElement(forms, 'form')
@@ -681,18 +703,19 @@ class ApplicationViewSet(viewsets.ViewSet):
             leaf.set('checksum-type', 'MD5')
             title = SubElement(leaf, 'title')
             title.text = '1.1.7 FDA 3674'
-        reg_xml = tostring(root)
+        reg_xml = ET.tostring(root).decode("utf-8")
         app_path = os.path.join(application.path, application.number, application.sequence)
-        print(os.path.join(app_path, 'm1','m1us', 'us-regional.xml'))
-        with open(os.path.join(app_path, 'm1','m1us','us-regional.xml'), 'a+') as reg_file:
-            reg_file.write(mydata)
-            md5sum = hashlib.md5(reg_file.read()).hexdigest()
-            print(md5sum)
+        # print(os.path.join(app_path, 'm1','m1us', 'us-regional.xml'))
+        with open(os.path.join(app_path, 'm1','m1us','us-regional.xml'), 'w+') as reg_file:
+            reg_file.write(header)
+            reg_file.write(reg_xml)
+            md5sum = hashlib.md5(reg_file.read().encode('utf-8')).hexdigest()
+            # print(md5sum)
         if md5sum: 
             return md5sum
         return null
 
-    def __create_stf(self, file_path, tag, leaf_id):
+    def __create_stf(self, file_path, tag, leaf_id, app_path):
         root = Element('ectd:study') 
         root.set('dtd-version', '2.2')
         root.set('xmlns:ectd','http://www.ich.org/ect')
@@ -706,18 +729,35 @@ class ApplicationViewSet(viewsets.ViewSet):
 
         document = SubElement(root, 'study-document')
         content = SubElement(document, 'doc-content')
-        content.set('xlink:href', '{}#{}'.format(file_path, leaf_id))             #file path
+        relpath = os.path.relpath(app_path, file_path)
+        print(relpath)
+        content.set('xlink:href', '{}index.xml#{}'.format(relpath, leaf_id))             #file path
         file_tag = SubElement(content, 'file-tag')
         file_tag.set('name', tag.stfType)
         file_tag.set('info-type', 'ich')
         
         stf = tostring(root)
         stf_path = os.path.join(file_path, '{}.xml'.format(tag.studyNumer))
-        with open(sft_path) as stf_file:
+        with open(sft_path, 'w+') as stf_file:
             stf_file.write(stf)
             md5sum = hashlib.md5(stf_file.read()).hexdigest()
         # if md5sum:
         return stf_path, md5sum
+
+    def indent(self, elem, level=0):
+        i = "\n" + level*"  "
+        if len(elem):
+            if not elem.text or not elem.text.strip():
+                elem.text = i + "  "
+            if not elem.tail or not elem.tail.strip():
+                elem.tail = i
+            for elem in elem:
+                self.indent(elem, level+1)
+            if not elem.tail or not elem.tail.strip():
+                elem.tail = i
+        else:
+            if level and (not elem.tail or not elem.tail.strip()):
+                elem.tail = i
 
     def __get_node_path(self, nodes, parent, parents):
         # print(repr(parents))
@@ -727,15 +767,6 @@ class ApplicationViewSet(viewsets.ViewSet):
             if node.id == parent:
                 parents.append(parent)
                 return self.__get_node_path(nodes, node.parent, parents)
-
-    # def __get_relative_path(self, path1, path2):
-    #     return os.path.relpath(path2, path1)
-    #     if path2.index(path1)==0:
-    #         return path2[0:len(path1)+1]
-    #     elif path1.index(path2)==0:
-    #         new_path = path1[0:len(path2)+2]
-    #         # new_path.split('/')
-    #     return null
 
     def __remove_empty_folders(self, path):
         if not os.path.isdir(path):
@@ -1172,7 +1203,6 @@ class FileUploadView(APIView):
             if up_file.size > 100000000: #100M
                 return Response({'msg': 'File size over limit'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
-            import uuid
             file_folder = uuid.uuid4().hex
             # path = '/home/ectd/{}/app_{}/{}'.format(application.company.name, app_id,file_folder)                 # ubuntu
             # path = 'C:/shares/django/app_{}/{}'.format(app_id,file_folder)  # Window path

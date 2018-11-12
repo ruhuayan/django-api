@@ -6,7 +6,6 @@ from ectd.manage.serializers import UserSerializer, GroupSerializer, PasswordSer
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import BasePermission, IsAuthenticated, AllowAny, IsAdminUser
-# from django.shortcuts import get_object_or_404
 from ectd.extra.msg import Msg
 import re
 from django.db import IntegrityError
@@ -17,6 +16,8 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.template.loader import render_to_string
 # from django.contrib.auth.tokens import default_token_generator
 from ectd.extra.tokens import account_activation_token
+from ectd.applications.models import Employee
+from ectd.applications.serializers import EmployeeSerializer
 # class IsAdminOrIsSelf(BasePermission):
 #     def has_object_permission(self, request, view, obj):
 #         if request.user.is_superuser:
@@ -27,7 +28,6 @@ class UserViewSet(viewsets.ViewSet):
     """
     A simple ViewSet for listing or retrieving users.
     """
-    # permission_classes = (AllowAny ,)
     def list(self, request):
         
         if request.user.is_superuser:
@@ -37,8 +37,6 @@ class UserViewSet(viewsets.ViewSet):
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
     def retrieve(self, request, pk=None):
-        # queryset = User.objects.all()
-        # user = get_object_or_404(queryset, pk=pk)
         try:
             user = User.objects.get(pk=pk)
         except User.DoesNotExist:
@@ -50,14 +48,6 @@ class UserViewSet(viewsets.ViewSet):
 
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
     
-    # def create(self, request):
-    #     serializer = UserSerializer(data=request.data)
-    #     if serializer.is_valid():
-    #         serializer.save()
-    #         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
     def update(self, request, pk=None):
         try:
             user = User.objects.get(pk=pk)
@@ -107,6 +97,16 @@ class UserViewSet(viewsets.ViewSet):
         user.save()
         return Response({'msg': 'Account activated'})
 
+class Verify(APIView):
+    def get(self, request, format=None):
+        try: 
+            employee = Employee.objects.get(user = request.user)
+            serializer = EmployeeSerializer(employee)
+            return Response(serializer.data)
+        except Employee.DoesNotExist:
+            serializer = UserSerializer(request.user)
+            return Response(serializer.data)
+
 class AccountList(APIView):
     permission_classes = (AllowAny ,)
 
@@ -131,21 +131,6 @@ class AccountList(APIView):
         #     self.send_email(user, request)
         #     return Response({'msg': 'Account created'}, status=status.HTTP_201_CREATED)
         # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    # @action(methods=['get'], detail=True, )
-    # def activate(self, request, uid=None, token=None):  # does not work
-    #     print(uid)
-    #     try:
-    #         uid = force_text(urlsafe_base64_decode(uid))
-    #         user = User.objects.get(pk=uid)
-    #     except(TypeError, ValueError, OverflowError, User.DoesNotExist):
-    #         user = None
-    #     if user is not None and account_activation_token.check_token(user, token):
-    #         user.is_active = True
-    #         user.save()
-    #         return Response({'msg': 'Thank you for your email confirmation. Now you can login your account.'})
-    #     else:
-    #         return Response({'msg':'Activation link is invalid!'}, status=status.HTTP_400_BAD_REQUEST)
 
     def send_email(self, user, request):
         current_site = get_current_site(request)

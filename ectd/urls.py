@@ -53,6 +53,7 @@ urlpatterns = [
     url(r'^api-token-refresh/', refresh_jwt_token),
     url(r'^users/register', views.AccountList.as_view()),
     url(r'^users/activate', views.ActivateAccount.as_view()),
+    url(r'^users/verify', views.Verify.as_view()),
     url(r'^applications/(?P<app_id>[0-9]+)/fileUpload', FileUploadView.as_view()),
     url(r'^applications/(?P<app_id>\d+)/nodes/(?P<node_id>[0-9a-zA-z]+)/tag', tag_detail, name='tag'),
     # url(r'^activate/(?P<uid>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,20})/$',
