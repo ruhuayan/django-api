@@ -2,7 +2,7 @@
 from django.contrib.auth.models import User, Group
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
-from ectd.manage.serializers import UserSerializer, GroupSerializer, PasswordSerializer, AccountSerializer
+from ectd.manage.serializers import UserSerializer, GroupSerializer, AccountSerializer
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import BasePermission, IsAuthenticated, AllowAny, IsAdminUser
@@ -54,7 +54,7 @@ class UserViewSet(viewsets.ViewSet):
         except User.DoesNotExist:
             return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         serializer = UserSerializer(user, data=request.data)
-        if request.user.is_superuser or request.user == user:
+        if user.username == request.data['username'] and request.user == user:
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data)
@@ -73,16 +73,15 @@ class UserViewSet(viewsets.ViewSet):
 
     @action(methods=['post'], detail=True,)
     def set_password(self, request, pk=None):
-        queryset = User.objects.all()
-        user = get_object_or_404(queryset, pk=pk)
-        if request.user.is_superuser or request.user == user:
-            serializer = PasswordSerializer(data=request.data)
-            if serializer.is_valid():
-                user.set_password(serializer.data['password'])
-                user.save()
-                return Response({'msg': 'password set'})
-            else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try: 
+            user = User.objects.get(pk=pk)
+        except User.DoesNotExist: 
+            return Response(Msg.NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        if request.user.username == user.username and user.check_password(request.data['currentPassword']):
+            user.set_password(request.data['password'])
+            user.save()
+            return Response({'msg': 'password set'})
         return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
     @action(methods=['get'], detail=True, permission_classes=(IsAdminUser,))

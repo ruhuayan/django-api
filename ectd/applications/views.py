@@ -492,7 +492,7 @@ class ApplicationViewSet(viewsets.ViewSet):
                 return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
 
             app_path = os.path.join(application.path, application.number, application.sequence)
-            self.__remove_empty_folders(app_path)
+            # self.__remove_empty_folders(app_path)
             md5sum = self.__create_index(application, app_path)
             with open(os.path.join(app_path, 'index_md5.txt'), 'w') as f:
                 f.write(md5sum)
@@ -738,7 +738,13 @@ class ApplicationViewSet(viewsets.ViewSet):
         
         stf = tostring(root)
         stf_path = os.path.join(file_path, '{}.xml'.format(tag.studyNumer))
+
+        header = '''<?xml version="1.0" encoding="utf-8"?>
+        <!DOCTYPE ectd:study SYSTEM "{}">
+        <?xml-stylesheet href="{}" type="text/xsl"?>
+        '''.format(os.path.relpath('util/dtd/ich-stf-v2-2.dtd', stf_path), os.path.relpath('util/style/ich-stf-stylesheet-2-2a.xsl', stf_path))
         with open(sft_path, 'w+') as stf_file:
+            stf_file.write(header)
             stf_file.write(stf)
             md5sum = hashlib.md5(stf_file.read()).hexdigest()
         # if md5sum:
