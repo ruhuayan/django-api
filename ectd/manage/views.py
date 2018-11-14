@@ -2,7 +2,7 @@
 from django.contrib.auth.models import User, Group
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
-from ectd.manage.serializers import UserSerializer, GroupSerializer, AccountSerializer
+from ectd.manage.serializers import UserSerializer, GroupSerializer
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import BasePermission, IsAuthenticated, AllowAny, IsAdminUser
@@ -122,14 +122,6 @@ class AccountList(APIView):
             return Response({'msg': 'error'}, status=status.HTTP_400_BAD_REQUEST)
         except IntegrityError:
             return Response({'msg': 'Email alread exist'}, status=status.HTTP_400_BAD_REQUEST)
-        # serializer = AccountSerializer(data=request.data)
-        # if serializer.is_valid():
-        #     user = User(**serializer.validated_data)
-        #     serializer.save()
-        #     print(user.id)
-        #     self.send_email(user, request)
-        #     return Response({'msg': 'Account created'}, status=status.HTTP_201_CREATED)
-        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def send_email(self, user, request):
         current_site = get_current_site(request)
