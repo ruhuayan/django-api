@@ -5,8 +5,7 @@ from ectd.extra.msg import Msg
 from ectd.settings import APP_DIR
 from ectd.extra.tokens import account_activation_token
 from django.template.loader import render_to_string
-# from django.core import serializers as core_serializers
-# from django.http import JsonResponse
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import viewsets, status
@@ -31,19 +30,17 @@ from ectd.PyPDF2.utils import b_
 import io
 import shutil
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
+# from reportlab.lib.pagesizes import letter
 from reportlab.graphics.shapes import Rect
 from reportlab.lib.colors import Color
 from xml.etree.ElementTree import Element, SubElement, tostring
-import xml.etree.ElementTree as ET
+# import xml.etree.ElementTree as ET
 
 # from rest_framework import mixins
 # from rest_framework import generics
 
 class TemplateViewSet(viewsets.ModelViewSet):
-    # permission_classes = (IsAdminUser,)
-    # queryset = Template.objects.all()
-    # serializer_class = TemplateSerializer
+   
     def list(self, request):
         queryset = Template.objects.all()
         serializer = TemplateSerializer(queryset, many=True)
@@ -95,7 +92,7 @@ class TemplateViewSet(viewsets.ModelViewSet):
 class CompanyViewSet(viewsets.ViewSet):
 
     def list(self, request):
-        if request.user.is_superuser or True:
+        if request.user.is_superuser:
             queryset = Company.objects.all().filter(deleted=False)
             serializer = CompanySerializer(queryset, many=True)
             return Response(serializer.data)
@@ -104,11 +101,12 @@ class CompanyViewSet(viewsets.ViewSet):
     def retrieve(self, request, pk=None):
         try:
             company = Company.objects.get(pk=pk)
-            print(company.employees)
+            employee = Employee.objects.get(user=request.user)
         except Company.DoesNotExist:
             return Response(Msg.COMPANY_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-
-        if request.user.is_superuser or True:
+        except Employee.DoesNotExist:
+            return Response(Msg.EMPLOYEE_NOT_FOUND,status=status.HTTP_404_NOT_FOUND )  
+        if request.user.is_superuser or company.id == employee.company.id:
             serializer = CompanySerializer(company)
             return Response(serializer.data)
 
@@ -144,14 +142,7 @@ class CompanyViewSet(viewsets.ViewSet):
     def destroy(self, request, pk=None):
         if  not request.user.is_superuser:
            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION) 
-        # try:
-        #     company = Company.objects.get(pk=pk)
-        # except Company.DoesNotExist:
-        #     return Response(Msg.COMPANY_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-        # company.delete()
-        # company.deleted = True
-        # company.deleted_at = timezone.now()
-        # company.deleted_by = request.user
+       
         Company.objects.filter(pk=pk).update(deleted=True, deleted_at=timezone.now(), deleted_by=request.user)
         return Response({'msg': "company deleted"}, status=status.HTTP_204_NO_CONTENT)
     
@@ -233,7 +224,7 @@ class EmployeeConfirm(APIView):
 class ApplicationViewSet(viewsets.ViewSet):
 
     def list(self, request):
-        if request.user.is_superuser or True:
+        if request.user.is_superuser:
             queryset = Application.objects.filter(deleted=False)
             serializer = ApplicationSerializer(queryset, many=True)
             return Response(serializer.data)
@@ -281,7 +272,7 @@ class ApplicationViewSet(viewsets.ViewSet):
                 # APP_PATH = 'C:\shares\django\{}\\app_{}\{}'.format(company.name, application.id, application.number)
 
                 os.makedirs(APP_PATH, exist_ok=True)
-                print(os.path.exists(APP_PATH))
+                # print(os.path.exists(APP_PATH))
                 util_path = os.path.join(APP_PATH, 'util')
                 os.makedirs(util_path, exist_ok=True)
                 self.__copytree(os.path.join(APP_DIR, 'util'), util_path)
@@ -377,7 +368,23 @@ class ApplicationViewSet(viewsets.ViewSet):
             return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
         except Application.DoesNotExist:
             return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
-            
+
+    #API /application/5/size
+    @action(methods=['get'], detail=True,)
+    def size(self, request, pk=None):
+        try: 
+            employee = Employee.objects.get(user=request.user)
+            application = Application.objects.get(pk=pk)
+            if request.user.is_superuser or application.company.id == employee.company.id:
+                queryset = File.objects.filter(application=application, deleted = False)
+                size = 0 #######################################files total size
+                return Response({'size': size})
+            return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+        except Employee.DoesNotExist:
+            return Response(Msg.EMPLOYEE_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+        except Application.DoesNotExist:
+            return Response(Msg.APPLICATION_NOT_FOUND, status=status.HTTP_404_NOT_FOUND)
+
     #API: /applications/5/appinfo
     @action(methods=['get'], detail=True,)
     def appinfo(self, request, pk=None):
@@ -703,7 +710,7 @@ class ApplicationViewSet(viewsets.ViewSet):
             leaf.set('checksum-type', 'MD5')
             title = SubElement(leaf, 'title')
             title.text = '1.1.7 FDA 3674'
-        reg_xml = ET.tostring(root).decode("utf-8")
+        reg_xml = tostring(root).decode("utf-8")
         app_path = os.path.join(application.path, application.number, application.sequence)
         # print(os.path.join(app_path, 'm1','m1us', 'us-regional.xml'))
         with open(os.path.join(app_path, 'm1','m1us','us-regional.xml'), 'w+') as reg_file:
@@ -797,7 +804,7 @@ class ApplicationViewSet(viewsets.ViewSet):
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     def list(self, request):
-        if request.user.is_superuser or True:
+        if request.user.is_superuser:
             queryset = Employee.objects.all()
             serializer = EmployeeSerializer(queryset, many=True)
             return Response(serializer.data)
@@ -1284,7 +1291,7 @@ class FileStateViewSet(viewsets.ModelViewSet):
                             # writer.addURI(i, link['uri'], link['rect'])
                             page_w = page.mediaBox.getWidth()
                             page_h = page.mediaBox.getHeight()
-                            print(page_w, page_h)
+                            # print(page_w, page_h)
                             x1 = float(link['rect']['left'])
                             y1 = float(link['rect']['top'])
                             w = float(link['rect']['width'])
@@ -1355,13 +1362,7 @@ class FileStateViewSet(viewsets.ModelViewSet):
         #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class NodeViewSet(viewsets.ModelViewSet):
-    # def list(self, request):
-    #     if request.user.is_superuser or True:
-    #         queryset = Node.objects.all()
-    #         serializer = NodeSerializer(queryset, many=True)
-    #         return Response(serializer.data)
-    #     return Response(Msg.NOT_AUTH, status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
-
+    
     def retrieve(self, request, pk=None):
         try:
             node = Node.objects.get(pk=pk)

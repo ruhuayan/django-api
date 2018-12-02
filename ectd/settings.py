@@ -15,7 +15,7 @@ import datetime
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-APP_DIR = '/home/etcd'
+APP_DIR = '/home/ectdapi/ectd'
 # APP_DIR = 'C:\shares\django'
 STATIC_ROOT = os.path.join(BASE_DIR, "static/")
 # Quick-start development settings - unsuitable for production
@@ -139,7 +139,7 @@ JWT_AUTH = {
 EMAIL_USE_TLS = True
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_HOST_USER = 'ectdapi@gmail.com'
-EMAIL_HOST_PASSWORD = 'test_123'
+EMAIL_HOST_PASSWORD = '****_123'
 EMAIL_PORT = 587
 
 #upload setting
@@ -162,3 +162,4 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/2.1/howto/static-files/
 
 STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
