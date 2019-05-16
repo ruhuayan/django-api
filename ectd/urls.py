@@ -49,7 +49,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     url(r'^', include(router.urls)),
     # url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework'))
-    url(r'^api-token-auth/', obtain_jwt_token),
+    url(r'^api-token-auth/', obtain_jwt_token, name='auth'),
     url(r'^api-token-refresh/', refresh_jwt_token),
     url(r'^users/register', views.AccountList.as_view()),
     url(r'^users/activate', views.ActivateAccount.as_view()),
