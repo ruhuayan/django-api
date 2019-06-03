@@ -4,10 +4,9 @@ Enviroments:
   Python >=3.5
   django 2.1
 packages:
-  django-adminrestrict
   django-rest-framework
   djangorestframework-jwt
-  jango-cors-headers
+  django-cors-headers
   PyPDF2
   reportlab
 
@@ -16,6 +15,10 @@ Testing:
   pytest-django
   pytest-cov
   mixer
+
+Install packages:
+  
+  pip install -r requirements.txt
 
 Migrations: 
   rm -f db.sqlite3
