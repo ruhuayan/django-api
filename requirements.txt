@@ -1,0 +1,12 @@
+#packages
+django ==2.1
+django-rest-framework
+djangorestframework-jwt
+django-cors-headers
+reportlab
+
+#dev-packages
+pytest
+pytest-django
+pytest-cov
+mixer
